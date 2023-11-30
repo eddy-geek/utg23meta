@@ -69,6 +69,7 @@ DRONE_MOVE_SPEED = 600  # units (u) per turn
 DRONE_SINK_SPEED = 300  # units (u) if motors not activated  
 DRONE_LIGHT_RADIUS = 800  # units (u)  
 DRONE_LIGHT_RADIUS_POWERFUL = 2000  # units (u)  
+MINIMUM_LIGHT_DEPTH_THRESHOLD = 3000  # units (u)
 BATTERY_DRAIN_POWERFUL_LIGHT = 5  # points  
 BATTERY_RECHARGE_RATE = 1  # point per turn  
 BATTERY_CAPACITY = 30  # full capacity  
@@ -126,7 +127,7 @@ CREATURE_COUNT_MAX = 20
 DRONE_COUNT = 2  
 
 FAST_MAX_DEPTH = 5000
-CHASER_DISTANCE_FROM_FOE = 650
+CHASER_DISTANCE_FROM_FOE = 800
 
 
 # Define the data structures as namedtuples
@@ -244,6 +245,7 @@ class Drone:
     waiting: bool
     is_light_enabled: bool
     context: Dict[str, object]
+    monsters_nearby = Dict[int, int]
 
     def __init__(self, drone_id, pos: Vector, dead, battery, scans):
         self.drone_id = drone_id
@@ -257,6 +259,7 @@ class Drone:
         self.is_light_enabled = False
         self.state = None
         self.context = {}
+        self.monsters_nearby = {}
 
     def get_order_move(self):
         str_light = f"{1 if self.is_light_enabled else 0}"
@@ -327,7 +330,7 @@ def update_positions(drones, visible_fish):
             if fs.is_monster:
                 fs.is_chasing_us__last_loop[drone] = True
                 if distance < drone.current_light_radius():
-                    print_debug("Drone %s chased by Monster %d at dist %d", drone.name(), fs.fish_id, distance)
+                    drone.monsters_nearby[fs.fish_id] = distance
                     fs.is_chasing_us__last_loop[drone] = False
 
     # update visible fish
@@ -347,6 +350,11 @@ def update_positions(drones, visible_fish):
         if fs.last_seen_loop and fs.last_seen_loop != loop:
             fs.predicted_pos = fs.predicted_pos + fs.last_seen_speed  #type:ignore (optional)
             update_dist(fs)
+
+    for drone in drones:
+        for monster_id, distance in drone.monsters_nearby.items():
+            print_debug("Drone %s chased by Monster %d at dist %d", drone.drone_id, monster_id, distance)
+
 
 
 def flee(drone, monster, strategic_target):
@@ -478,10 +486,16 @@ def run_fast(drone):
         drone.target = Vector(drone.target.x + 1600, FAST_MAX_DEPTH if drone.target.y < 500 else 499)
 
 def run_sinker(drone):
+    #===========================
+    #     INIT First loop
+    #===========================
     if loop == 0:
         drone.context["side"] = SinkerSide.RIGHT if drone.pos.x > 5000 else SinkerSide.LEFT
         drone.context["state"] = SinkerState.SINKING
 
+    #===========================
+    #     Check state
+    #===========================
     if drone.pos.y >= 8000 and drone.context["state"] == SinkerState.SINKING:
         drone.context["state"] = SinkerState.CROSSING
     elif drone.pos.y >= 8000 and drone.context["state"] == SinkerState.CROSSING and 5000 - 400 <= drone.pos.x <= 5000 + 400:
@@ -490,14 +504,16 @@ def run_sinker(drone):
         drone.context["state"] = SinkerState.SINKING
         drone.context["side"] = SinkerSide.RIGHT if drone.context["side"] == SinkerSide.LEFT else SinkerSide.LEFT
 
+    #===========================
+    #     State resol
+    #===========================
     if(drone.context["state"] == SinkerState.SINKING):
         drone.target = Vector(8000 if drone.context["side"] == SinkerSide.RIGHT else 2000, 8000)
     elif(drone.context["state"] == SinkerState.CROSSING):
         drone.target = Vector(5000, 8000)
     elif(drone.context["state"] == SinkerState.RISING):
         drone.target = Vector(drone.pos.x, 500)
-        
-    
+
 
 # def run_sinker(drone):
 #     if loop == 0:
@@ -587,7 +603,7 @@ while True:
             drone_by_id[drone_id].pos = pos
             drone_by_id[drone_id].dead = dead == '1'
             drone_by_id[drone_id].battery = battery
-        
+
 
     drone_scan_count = int(input())
     for _ in range(drone_scan_count):
@@ -608,17 +624,23 @@ while True:
         fish_id = int(fish_id)
         my_radar_blips[drone_id].append(RadarBlip(fish_id, dir))
 
-        update_positions(my_drones, visible_fish)
+    # call once
+    update_positions(my_drones, visible_fish)
 
     for drone in my_drones:
         if loop == 0:
             drone.role = DroneRole.CHASER if drone.drone_id in FAST_COMPATIBLE_POSITIONS else DroneRole.SINKER
 
-        # Init each loop
+        #===========================
+        #     Init each loop
+        #===========================
         print_debug("Drone %s", drone)
-        drone.is_light_enabled = loop % 3 == 0
+        # Turn on lights every 5 loops by default
+        drone.is_light_enabled = drone.pos.y > MINIMUM_LIGHT_DEPTH_THRESHOLD and loop % 5 == 0
 
-        # Loop strategy
+        #===========================
+        #     Loop strategy
+        #===========================
         strategies[drone.role](drone)
 
         # Detect any monsters
