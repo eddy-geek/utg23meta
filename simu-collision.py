@@ -1,4 +1,5 @@
-# Previous prompts
+# prompts history
+
 #1
 # This is a game with a square board of 10000 by 10000 pixels.
 # On it there is my drone and 5 enemy bots, all represented by circles 250 pixels in diameter.  
@@ -31,6 +32,33 @@
 #7
 # your code is wrong. at each turn the drone position and the bot position change.
 # rewrite predict_bots_movement so that bots move towards updated drone positions as drone moves in the chosen angle
+
+#8 (restarting with only full code so far)
+# the function `find_safe_direction` is overly complicated and buggy, find out why and improve it
+
+#9
+# this is still wrong.  
+# find_safe_direction should simulate the 3 turns in a similar way like the main loop :  
+# ```  
+#     drone_position = ... # move drone towards angle  
+#     bots_positions = move_bots(bots_positions, previous_drone_position, BOT_SPEED)    
+# ```  
+
+
+
+
+
+
+## ============ MINIMAL context starts here
+
+# This is a game with a square board of 10000 by 10000 pixels.
+# On it there is my drone and 5 enemy bots, all represented by circles 250 pixels in diameter.  
+
+# my drone move 600 pixels per turn in the direction of a target I set. The enemy bots move at 500 pixels per turn.
+# They move toward my current position.   
+
+# my drone starts at (0,0) and needs to reach (10000, 10000).  
+
 
 
 import math
@@ -111,13 +139,18 @@ def predict_bots_movement(bots_positions: List[Position], drone_position: Positi
     return predicted_positions
 
 
+
+
+
+# Assuming other parts of the code remain unchanged except for the find_safe_direction function
+
 def find_safe_direction(drone_position: Position, bots_positions: List[Position]) -> Position:
     best_direction = None
     max_safe_distance = -1
-    safety_margin = (DRONE_DIAMETER + BOT_DIAMETER) / 2
-    turns_ahead = 3
+    safety_margin = DRONE_DIAMETER / 2 + BOT_DIAMETER / 2  # Full diameter collision margin
+    turns_ahead = 3  # How many turns ahead we are checking
 
-    for angle in range(0, 360, 10):  # Check every 10 degrees for a safe direction
+    for angle in range(0, 360, 10):
         rad = math.radians(angle)
         drone_move = (DRONE_SPEED * math.cos(rad), DRONE_SPEED * math.sin(rad))
         safe_for_all_turns = True
@@ -126,26 +159,20 @@ def find_safe_direction(drone_position: Position, bots_positions: List[Position]
         predicted_positions = predict_bots_movement(bots_positions, drone_position, turns_ahead, drone_move)
 
         # Check if the drone's predicted path is collision-free over the next three turns
-        for turn, bot_positions in enumerate(predicted_positions):
+        for turn in range(turns_ahead):
             new_drone_position = (drone_position[0] + drone_move[0] * (turn + 1), drone_position[1] + drone_move[1] * (turn + 1))
             
-            # Check if the new drone position is within board limits
             if not (0 <= new_drone_position[0] <= BOARD_SIZE and 0 <= new_drone_position[1] <= BOARD_SIZE):
                 safe_for_all_turns = False
                 break
             
-            # Check for collisions at each turn
-            for bot in bot_positions:
-                if math.hypot(bot[0] - new_drone_position[0], bot[1] - new_drone_position[1]) < safety_margin:
-                    safe_for_all_turns = False
-                    break
-            if not safe_for_all_turns:
+            if check_collision(new_drone_position, predicted_positions[turn], DRONE_DIAMETER, BOT_DIAMETER):
+                safe_for_all_turns = False
                 break
 
-        # If the path is safe, determine if it is the best option based on safe distance
         if safe_for_all_turns:
             # Calculate the minimum safe distance to the bots at the final predicted position
-            final_drone_position = (drone_position[0] + drone_move[0] * turns_ahead, drone_position[1] + drone_move[1] * turns_ahead)
+            final_drone_position = new_drone_position
             min_safe_distance = min(math.hypot(bot[0] - final_drone_position[0], bot[1] - final_drone_position[1]) for bot in predicted_positions[-1])
             if min_safe_distance > max_safe_distance:
                 best_direction = drone_move
@@ -156,8 +183,10 @@ def find_safe_direction(drone_position: Position, bots_positions: List[Position]
         new_drone_position = (drone_position[0] + best_direction[0], drone_position[1] + best_direction[1])
         return new_drone_position
 
-    # If no safe move was found, stay in place
     return drone_position
+
+
+
 
 
 def move_drone(drone_position: Position, bots_positions: List[Position]) -> Position:
@@ -210,6 +239,7 @@ while True:
 
     # Move the drone towards the target position  
     drone_position = move_drone(drone_position, bots_positions)
+    drone_position = (int(drone_position[0]), int(drone_position[1]))
       
     # Move the bots towards the drone's current position  
     bots_positions = move_bots(bots_positions, previous_drone_position, BOT_SPEED)  
@@ -231,3 +261,7 @@ while True:
   
     # Print the board at each turn  
     print_board(drone_position, bots_positions)  
+
+    if loop == 100:
+        print("Game Over: The drone has run out of turns.")
+        break
