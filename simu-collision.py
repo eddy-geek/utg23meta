@@ -53,6 +53,9 @@
 # especially how we set `best_direction`.
 # it should not be the furthest away from the bots, just safe enough and the closest to target
 
+#12
+# there is an error in the math code so that the bot never ends up at the target, can you find it?
+
 
 
 ## ============ MINIMAL context starts here
@@ -194,8 +197,10 @@ def find_safe_direction(drone_position: Position, bots_positions: List[Position]
             # We want to maximize safe distance and minimize distance to target
             score = math.log(safety_distance) - distance_to_target
             if score > max_score:
-                best_direction = drone_move
+                best_direction = int(drone_move[0]), int(drone_move[1])
                 max_score = score
+                print(f"new best angle {angle}, score {score:.0f} = safety {safety_distance:.0f}|"
+                      f"{math.log(safety_distance):.0f} - distance {distance_to_target:.0f} -> direction {best_direction}")
 
     # If a safe direction was found, return the new position in that direction
     if best_direction is not None:
