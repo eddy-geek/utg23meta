@@ -140,12 +140,12 @@ class Vector(NamedTuple):
 
     def __add__(self, other):
         return Vector(self.x + other.x, self.y + other.y)
-    
+
     def __sub__(self, other):
         return Vector(self.x - other.x, self.y - other.y)
 
     # override unary minus
-    def __neg__(self):  
+    def __neg__(self):
         return Vector(-self.x, -self.y)
 
     def perpendicular(self):
@@ -153,19 +153,19 @@ class Vector(NamedTuple):
 
     def __mul__(self, scalar):
         return Vector(self.x * scalar, self.y * scalar)
-    
-    def __div__(self, scalar):
+
+    def __truediv__(self, scalar):
         return Vector(self.x / scalar, self.y / scalar)
 
     def dot(self, vector2):   # dot_product
-        return self.x * vector2.x + self.y * vector2.y  
-  
-    def normalize(self):  
+        return self.x * vector2.x + self.y * vector2.y
+
+    def normalize(self):
         norm = math.sqrt(self.x ** 2 + self.y ** 2)
         if norm == 0:
             return self
         return Vector(self.x / norm, self.y / norm)
-    
+
     def is_behind(self, vector2):
         return self.dot(vector2) < 0
 
@@ -253,7 +253,6 @@ class Drone:
         self.scans = scans
         self.role = None # type:ignore (optional)
         self.target = pos
-        self.clockwise = False
         self.waiting = False
         self.is_light_enabled = False
         self.state = None
@@ -263,7 +262,7 @@ class Drone:
         str_light = f"{1 if self.is_light_enabled else 0}"
         if(self.waiting):
             return f"WAIT {str_light}"
-        return f"MOVE {clamp(round(self.target.y))} {clamp(round(self.target.y))} {str_light}"
+        return f"MOVE {clamp(round(self.target.x))} {clamp(round(self.target.y))} {str_light}"
 
     def detect_close_monsters(self):
         MAX_EVASION_LOOPS = 5
@@ -298,9 +297,12 @@ class Drone:
         # Set the evade target to move during the current loop
         self.target = choose_best_way_around_to_target(self, monster, self.target)
 
+    def name(self):
+        return f"{self.role.name}-{self.drone_id}"
+
     def __str__(self):
-        return f"""Drone {self.drone_id} pos={self.pos} {"DEAD!" if self.dead else ""} batt={self.battery} role {self.role}
-        scans#{len(self.scans)} target={self.target} {self.clockwise} {self.waiting} {self.is_light_enabled} context={self.context}"""
+        return f"""{self.name()} pos={self.pos} {"DEAD!" if self.dead else ""} batt={self.battery}
+        scans#{len(self.scans)} target={self.target} {self.waiting} {self.is_light_enabled} context={self.context}"""
     
     def current_light_radius(self):
         return DRONE_LIGHT_RADIUS_POWERFUL if self.is_light_enabled else DRONE_LIGHT_RADIUS
@@ -325,7 +327,7 @@ def update_positions(drones, visible_fish):
             if fs.is_monster:
                 fs.is_chasing_us__last_loop[drone] = True
                 if distance < drone.current_light_radius():
-                    print_debug("Monster %d is chasing drone %s-%d dist %d", fs.fish_id, drone.role, drone.drone_id, distance)
+                    print_debug("Drone %s chased by Monster %d at dist %d", drone.name(), fs.fish_id, distance)
                     fs.is_chasing_us__last_loop[drone] = False
 
     # update visible fish
@@ -398,9 +400,9 @@ def choose_best_way_around_to_target(drone: Drone, monster: FishGlobalState, str
     to_target_vector = strategic_target - pos
     vector_to_monster = monster.predicted_pos - pos
 
-    print_debug("Done: %d, DOT: %d", drone.drone_id, to_target_vector.dot(vector_to_monster))
+    print_debug("%s, DOT: %d", drone.name(), to_target_vector.dot(vector_to_monster))
     if to_target_vector.is_behind(vector_to_monster):
-        print_debug("%s.%d: No need to go around the monster", drone.role, drone.drone_id)
+        print_debug("%s: No need to go around the monster", drone.name())
         return strategic_target
 
     around1 = vector_to_monster.perpendicular()
@@ -415,10 +417,10 @@ def choose_best_way_around_to_target(drone: Drone, monster: FishGlobalState, str
     dot_product1 = to_target_vector_norm.dot(around_norm1)
     dot_product2 = to_target_vector_norm.dot(around_norm2)
     if dot_product1 > dot_product2:  
-        print_debug("%s-%d: avoiding monster by right", drone.role, drone.drone_id)
+        print_debug("%s: avoiding monster by right", drone.name())
         direction: Vector = around_norm1
     else:
-        print_debug("%s-%d: avoiding monster by left", drone.role, drone.drone_id)
+        print_debug("%s: avoiding monster by left", drone.name())
         direction: Vector = around_norm2
 
     return target_from_direction(pos, direction)
@@ -482,7 +484,7 @@ def run_sinker(drone):
 
     if drone.pos.y >= 8000 and drone.context["state"] == SinkerState.SINKING:
         drone.context["state"] = SinkerState.CROSSING
-    elif drone.pos.y >= 8000 and drone.context["state"] == SinkerState.CROSSING and (drone.pos.x in (2000, 8000)):
+    elif drone.pos.y >= 8000 and drone.context["state"] == SinkerState.CROSSING and 5000 - 400 <= drone.pos.x <= 5000 + 400:
         drone.context["state"] = SinkerState.RISING
     elif drone.pos.y <= 500 and drone.context["state"] == SinkerState.RISING:
         drone.context["state"] = SinkerState.SINKING
@@ -607,7 +609,7 @@ while True:
         my_radar_blips[drone_id].append(RadarBlip(fish_id, dir))
 
         update_positions(my_drones, visible_fish)
-    
+
     for drone in my_drones:
         if loop == 0:
             drone.role = DroneRole.CHASER if drone.drone_id in FAST_COMPATIBLE_POSITIONS else DroneRole.SINKER
