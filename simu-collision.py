@@ -44,8 +44,14 @@
 #     bots_positions = move_bots(bots_positions, previous_drone_position, BOT_SPEED)    
 # ```  
 
+#10 - back from code again
+# currently `find_safe_direction` is too safe, so the bot never reaches target.
+# when the enemy bots are out of the way, drone should move toward the target. modify the code.  
 
-
+#11
+# no, check_collision_on_path is not the right modification. pay attention to the original find_safe_direction 
+# especially how we set `best_direction`.
+# it should not be the furthest away from the bots, just safe enough and the closest to target
 
 
 
@@ -58,7 +64,7 @@
 # They move toward my current position.   
 
 # my drone starts at (0,0) and needs to reach (10000, 10000).  
-
+# code: ```
 
 
 import math
@@ -117,9 +123,9 @@ def move_bots(bots_positions: List[Position], drone_position: Position, speed: i
 
 
 # Function to check for collision
-def check_collision(drone_position: Position, bots_positions: List[Position], drone_diameter: int, bot_diameter: int) -> bool:  
-    drone_radius = drone_diameter / 2
-    bot_radius = bot_diameter / 2
+def check_collision(drone_position: Position, bots_positions: List[Position]) -> bool:  
+    drone_radius = DRONE_DIAMETER / 2
+    bot_radius = BOT_DIAMETER / 2
     
     for bot_position in bots_positions:
         distance = math.sqrt((drone_position[0] - bot_position[0])**2 + (drone_position[1] - bot_position[1])**2)
@@ -151,7 +157,6 @@ def move_towards(current_position: Position, move: Position) -> Position:
 def find_safe_direction(drone_position: Position, bots_positions: List[Position]) -> Position:
     best_direction = None
     max_safe_distance = -1
-    safety_margin = DRONE_DIAMETER / 2 + BOT_DIAMETER / 2  # Full diameter collision margin
     turns_ahead = 3  # How many turns ahead we are checking
 
     # Check in all directions
@@ -176,7 +181,7 @@ def find_safe_direction(drone_position: Position, bots_positions: List[Position]
             temp_bots_positions = move_bots(temp_bots_positions, temp_drone_position, BOT_SPEED)
 
             # Check for collision after bots' movements
-            if check_collision(temp_drone_position, temp_bots_positions, DRONE_DIAMETER, BOT_DIAMETER):
+            if check_collision(temp_drone_position, temp_bots_positions):
                 safe_for_all_turns = False
                 break
 
@@ -256,7 +261,7 @@ while True:
     print(f"{loop}: Drone: {drone_position}; Bots: {bots_positions}")
 
     # Check for collision  
-    if check_collision(drone_position, bots_positions, DRONE_DIAMETER, BOT_DIAMETER):  
+    if check_collision(drone_position, bots_positions):  
         print_board(drone_position, bots_positions)  
         print("Game Over: The drone has been caught by an enemy bot.")  
         break  
