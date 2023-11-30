@@ -1,3 +1,51 @@
+# # 
+# Win more points than your opponent by scanning the most fish.
+
+# To protect marine life, it is crucial to understand it. Explore the ocean floor using your drone to scan as many fish as possible to better understand them!
+#  Rules
+
+# The game is played turn by turn. Each turn, each player gives an action for their drone to perform.
+# The Map
+
+# The map is a square of 10,000 units on each side. Length units will be denoted as "u" in the rest of the statement. The coordinate (0, 0) is located at the top left corner of the map.
+# Drones
+
+# Each player has a drone to explore the ocean floor and scan the fish. Each turn, the player can decide to move their drone in a direction or not activate its motors.
+
+
+# Your drone continuously emits light around it. If a fish is within this light radius, it is automatically scanned. You can increase the power of your light (and thus your scan radius), but this will drain your battery.
+
+# In order to save your scans and score points, you will need to resurface with your drone.
+# Fish
+
+# On the map, different fish are present. Each fish has a specific type and color. In addition to the points earned if you scan a fish and bring the scan back to the surface, bonuses will be awarded if you scan all the fish of the same type or same color, or if you are the first to do so.
+
+# Each fish moves within a habitat zone, depending on its type. Only fish within the light radius of your drone will be visible to you.
+# Unit Details
+# Drones
+
+# Drones move towards the given point, with a maximum distance per turn of 600u. If the motors are not activated in a turn, the drone will sink by 300u.
+
+# At the end of the turn, fish within a radius of 800u will be automatically scanned.
+
+# If you have increased the power of your light, this radius becomes 2000u, but the battery drains by 5 points. If the powerful light is not activated, the battery recharges by 1. The battery has a capacity of 30 and is fully charged at the beginning of the game.
+
+# If the drone is near the surface (y ≤ 500u), the scans will be automatically saved, and points will be awarded.
+# Radar
+
+# To better navigate the dark depths, drones are equipped with radars. For each creature (fish or monster) in the game zone, the radar will indicate:
+
+#     TL: if the entity is somewhere top left of the drone.
+#     TR: if the entity is somewhere top right of the drone.
+#     BR: if the entity is somewhere bottom right of the drone.
+#     BL: if the entity is somewhere bottom left of the drone.
+
+# Note: If the entity shares the same x-coordinate as the drone, it will be considered as being on the left. If the entity shares the same y-coordinate as the drone, it will be considered as being on the top.
+# Fish
+
+# Fish move 200u each turn, in a randomly chosen direction at the beginning of the game. Each fish moves within a habitat zone based on its type. If it reaches the edge of its habitat zone, it will rebound off the edge.
+
+
 from typing import List, NamedTuple, Dict
 
 # Define the data structures as namedtuples
@@ -33,8 +81,14 @@ for _ in range(fish_count):
     fish_id, color, _type = map(int, input().split())
     fish_details[fish_id] = FishDetail(color, _type)
 
+target_x = 10000
+target_y = 10000
+i = 0
+
+
 # game loop
 while True:
+    i = i + 1
     my_scans: List[int] = []
     foe_scans: List[int] = []
     drone_by_id: Dict[int, Drone] = {}
@@ -72,7 +126,7 @@ while True:
         drone = Drone(drone_id, pos, dead == '1', battery, [])
         drone_by_id[drone_id] = drone
         foe_drones.append(drone)
-    
+
     drone_scan_count = int(input())
     for _ in range(drone_scan_count):
         drone_id, fish_id = map(int, input().split())
@@ -96,8 +150,15 @@ while True:
         x = drone.pos.x
         y = drone.pos.y
         # TODO: Implement logic on where to move here
-        target_x = 5000
-        target_y = 5000
-        light = 1
+
+        if x > 8000 and target_x == 10000:
+            target_x = 0
+        if x < 1000 and target_x == 0:
+            target_y = 0
+        if x == 0 and y == 0 and target_y == 0:
+            target_x = 10000
+            target_y = 10000
+
+        light = 1 if i % 3 == 0 else 0
 
         print(f"MOVE {target_x} {target_y} {light}")
