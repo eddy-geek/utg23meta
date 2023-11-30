@@ -126,6 +126,7 @@ CREATURE_COUNT_MAX = 20
 DRONE_COUNT = 2  
 
 FAST_MAX_DEPTH = 5000
+CHASER_DISTANCE_FROM_FOE = 650
 
 
 # Define the data structures as namedtuples
@@ -134,11 +135,31 @@ FAST_MAX_DEPTH = 5000
 #===========================================================================
 
 class Vector(NamedTuple):
-    x: int
-    y: int
+    x: float
+    y: float
 
     def __sum__(self, other):
         return Vector(self.x + other.x, self.y + other.y)
+    
+    def __sub__(self, other):
+        return Vector(self.x - other.x, self.y - other.y)
+
+    def perpendicular(self):
+        return Vector(-self.y, self.x)
+
+    def __mul__(self, scalar):
+        return Vector(self.x * scalar, self.y * scalar)
+    
+    def dot(self, vector2):   # dot_product
+        return self[0] * vector2[0] + self[1] * vector2[1]  
+  
+    def normalize(self):  
+        norm = math.sqrt(self[0] ** 2 + self[1] ** 2)  
+        return (self[0] / norm, self[1] / norm)
+    
+    def is_behind(self, vector2):
+        return self.dot(vector2) < 0
+
 
 class FishDetail(NamedTuple):
     color: int
@@ -158,18 +179,21 @@ class RadarBlip(NamedTuple):
 class DroneRole(Enum):
     SINKER = 1
     FAST = 2
+    CHASER = 3
 
 SINKER_COMPATIBLE_POSITIONS = (1, 2)
 FAST_COMPATIBLE_POSITIONS = (0, 3)
 
-# enum dronesinkerstate
-class DroneState(Enum):
-    SINKER_SINKING = 1
-    SINKER_CROSSING = 2
-    SINKER_RISING = 3
-    FAST_CROSSING_TOP_RIGHT = 1
-    FAST_CROSSING_TOP_LEFT = 2
+class SinkerState(Enum):
+    SINKING = 1
+    CROSSING = 2
+    RISING = 3
 
+class FastState(Enum):
+    CROSSING_TOP_RIGHT = 1
+    CROSSING_TOP_LEFT = 2
+
+#
 class Drone:
     drone_id: int
     pos: Vector
@@ -177,11 +201,18 @@ class Drone:
     battery: int
     scans: List[int]
     role: DroneRole
-    target: Vector
-    clockwise: bool
+    target: Vector  # Target is the target that might dodge a monster or just follow the strategy_target
     waiting: bool
     is_light_enabled: bool
-    state: Optional[DroneState]
+    context: Dict[str, object]
+
+    # SINKER
+    clockwise: bool
+    
+    # SINKER v2
+
+    # CHASER
+    chasing_id: Optional[int]
 
     def __init__(self, drone_id, pos, dead, battery, scans):
         self.drone_id = drone_id
@@ -195,12 +226,13 @@ class Drone:
         self.waiting = False
         self.is_light_enabled = False
         self.state = None
+        self.chasing_id = None
     
     def get_order_move(self):
         str_light = f"{1 if self.is_light_enabled else 0}"
         if(self.waiting):
             return f"WAIT {str_light}"
-        return f"MOVE {self.target.x} {self.target.y} {str_light}"
+        return f"MOVE {round(self.target.x)} {round(self.target.y)} {str_light}"
     
     def is_monster_close(self):
         # get the list of blips reconciliated with fish_details via fish_id
@@ -208,6 +240,30 @@ class Drone:
         if detected:
             print_debug("%rone s detected monster %s", self.role, detected)
         return detected > 0
+
+    # (1) 2300<>2000 : get around the monster
+    # at each turn, compute the norm of diff to monster
+    # choose betweeen norm and -norm based on target
+    # (2) 0 <> 1000: flee!!!
+
+    def evade_all_monsters(self):
+        # 0. Detect all monsters
+        self.is_monster_close()
+        # 1. Evade only one monster
+        # 2. Evade all monsters
+        pass
+
+    def evade_monster(self, monster: VisibleFish):
+        # Turn off lights to start evading
+        self.is_light_enabled = False
+
+        # Set the evade target to move during the current loop
+        self.target = choose_best_way_around_to_target(self, monster, self.target)
+        pass
+
+    def __str__(self):
+        return f"""Drone {self.drone_id} pos={self.pos} {"DEAD!" if self.dead else ""} batt={self.battery} role {self.role}
+        scans#{len(self.scans)} target={self.target} {self.clockwise} {self.waiting} {self.is_light_enabled} {self.state}"""
 
 class FishGlobalState:
     fish_id : int
@@ -229,6 +285,10 @@ class FishGlobalState:
         self.last_seen_speed = None
         self.is_chasing_us__last_loop = {}
         self.p_distance = {}
+
+    def __str__(self):
+        return f"FishGlobalState {self.fish_id} {self.detail} {self.is_monster} {self.last_seen_loop} {self.predicted_pos} {self.last_seen_speed} {self.is_chasing_us__last_loop} {self.p_distance}"
+
 
 # FishId is type alias int
 FishId = int
@@ -266,11 +326,63 @@ def update_positions(drones, visible_fish, my_radar_blips):
             fs.predicted_pos = fs.predicted_pos + fs.last_seen_speed  #type:ignore (optional)
 
 
-# TODO monster evasion strategy:
+
+
+
+def flee(drone, monster, strategic_target):
+    vector_to_monster = monster.pos - drone.pos
+    direction = (-vector_to_monster).normalize() * 600
+
+
+def choose_best_way_around_to_target(drone, monster, strategic_target) -> Vector:
+    """
+    In Python, you can determine which of two vectors points more directly towards a target 
+    from your position by calculating the dot product of the vectors created 
+    from your position to the target and from your position to the end of each vector.
+    The dot product will tell you about the alignment of the vectors.
+    The vector with the larger dot product (when normalized) points more directly toward the target.
+
+    *Calculate the vectors from your current position to the target and from your position to the tip of each vector.
+    *Normalize these vectors (make their length equal to 1) to ensure a fair comparison.
+    *Calculate the dot product of the normalized vector from your position to the target with each of the other normalized vectors.
+    *Compare the dot products, and choose the vector with the higher dot product value.
+
+    """
+    # Your position  
+    pos: Vector = drone.pos
+    
+    # Calculate vectors from position to target and to the tips of the vectors  
+    to_target_vector = strategic_target - pos
+    vector_to_monster = monster.pos - drone.pos
+
+    if to_target_vector.is_behind(vector_to_monster):
+        print_debug("%s.%d: No need to go around the monster", drone.role, drone.drone_id)
+        return strategic_target
+
+    around1 = vector_to_monster.perpendicular()
+    around2 = -around1
+    
+    # Normalize the vectors  
+    to_target_vector_norm = to_target_vector.normalize()  
+    around_norm1 = around1.normalize()  
+    around_norm2 = around2.normalize()    
+    
+    # Choose the vector that has the larger dot product  
+    dot_product1 = to_target_vector_norm.dot(around_norm1)
+    dot_product2 = to_target_vector_norm.dot(around_norm2)
+    if dot_product1 > dot_product2:  
+        print_debug("%s.%d: avoiding monster by left", drone.role, drone.drone_id)
+        direction = around_norm1
+    else:
+        direction = around_norm2
+    
+    return pos + direction * 600
+
+# 
+# evasion strategy:
 # - activate strategy if there is a monster *detected**:
 #   - turn light down
 #   - avoid detection
-#   - where would 
 
 #===========================================================================
 #                            Functions
@@ -300,10 +412,27 @@ for _ in range(fish_count):
     fish_id, color, _type = map(int, input().split())
     fish_details[fish_id] = FishDetail(color, _type)
 
+def run_chase(drone):
+    # Follow foe drone associated to your drone
+    # Assign the drone target just behind the foe drone y - 100
+    # If the foe is dead, evade and leave the zone
+    if(loop == 0):
+        foes_by_distance = sorted(foe_drones, key=lambda foe: dist(drone.pos, foe.pos))
+        drone.chasing = foes_by_distance[0].drone_id
+    
+    foe = [foe for foe in foe_drones if foe.drone_id == drone.chasing][0]
+    if foe.dead:
+        drone.target = Vector(foe.pos.x, 500)
+    else:
+        drone.target = Vector(foe.pos.x, foe.pos.y - CHASER_DISTANCE_FROM_FOE)
+        
 def run_fast(drone):
     drone.is_light_enabled = not is_monster_close(drone) and drone.is_light_enabled
     if drone.pos.x % 800 == 0:
         drone.target = Vector(drone.target.x + 1600, FAST_MAX_DEPTH if drone.target.y < 500 else 499)
+
+def run_sinker_v2(drone):
+    
 
 def run_sinker(drone):
     if loop == 0:
@@ -311,7 +440,7 @@ def run_sinker(drone):
     drone.is_light_enabled = not is_monster_close(drone) and loop % 5 == 0
 
     if drone.state == None:
-        drone.state = DroneState.SINKER_SINKING
+        drone.context["state"] = SinkerState.SINKING
         drone.clockwise = drone.pos.x > 5000 
     if drone.pos.y == 8000 and drone.state == DroneState.SINKER_SINKING:
         drone.state = DroneState.SINKER_CROSSING
@@ -320,9 +449,9 @@ def run_sinker(drone):
     elif drone.pos.y == 500 and drone.state == DroneState.SINKER_RISING:
         drone.state = DroneState.SINKER_SINKING
 
-    BOTTOM_POWERFUL_LIGHT_THRESHOLD = 8000  # units (u) 
-    bottom_left_corner_light = Vector(DRONE_LIGHT_RADIUS_POWERFUL, BOTTOM_POWERFUL_LIGHT_THRESHOLD)
-    bottom_right_corner_light = Vector(10000 - DRONE_LIGHT_RADIUS_POWERFUL, BOTTOM_POWERFUL_LIGHT_THRESHOLD)
+    # BOTTOM_POWERFUL_LIGHT_THRESHOLD = 8000  # units (u) 
+    # bottom_left_corner_light = Vector(DRONE_LIGHT_RADIUS_POWERFUL, BOTTOM_POWERFUL_LIGHT_THRESHOLD)
+    # bottom_right_corner_light = Vector(10000 - DRONE_LIGHT_RADIUS_POWERFUL, BOTTOM_POWERFUL_LIGHT_THRESHOLD)
 
     if(drone.state == DroneState.SINKER_SINKING):
         drone.target = Vector(8000 if drone.clockwise else 2000, 8000)
@@ -334,19 +463,20 @@ def run_sinker(drone):
 strategies = {
     DroneRole.FAST: run_fast,
     DroneRole.SINKER: run_sinker,
+    DroneRole.CHASER: run_chase,
 }
 
 loop = 0
+drone_by_id: Dict[int, Drone] = {}
+# position and battery/dead of my drones
+my_drones: List[Drone] = []
+# position and battery/dead of the enemy drones
+foe_drones: List[Drone] = []
+
 # game loop
 while True:
-    loop = loop + 1
     my_scans: List[int] = []
     foe_scans: List[int] = []
-    drone_by_id: Dict[int, Drone] = {}
-    # position and battery/dead of my drones
-    my_drones: List[Drone] = []
-    # position and battery/dead of the enemy drones
-    foe_drones: List[Drone] = []
     # all fish visible (within DRONE_LIGHT_RADIUS or more for monsters) by both drones
     visible_fish: List[VisibleFish] = []
     # for each drone_id, a list of blips (TL=TopLeft etc.)
@@ -369,18 +499,30 @@ while True:
     for _ in range(my_drone_count):
         drone_id, drone_x, drone_y, dead, battery = map(int, input().split())
         pos = Vector(drone_x, drone_y)
-        drone = Drone(drone_id, pos, dead == '1', battery, [])
-        drone_by_id[drone_id] = drone
-        my_drones.append(drone)
+        if loop == 0:
+            drone = Drone(drone_id, pos, dead == '1', battery, [])
+            drone_by_id[drone_id] = drone
+            my_drones.append(drone)
+        else:
+            drone_by_id[drone_id].pos = pos
+            drone_by_id[drone_id].dead = dead == '1'
+            drone_by_id[drone_id].battery = battery
         my_radar_blips[drone_id] = []
 
     foe_drone_count = int(input())
     for _ in range(foe_drone_count):
         drone_id, drone_x, drone_y, dead, battery = map(int, input().split())
         pos = Vector(drone_x, drone_y)
-        drone = Drone(drone_id, pos, dead == '1', battery, [])
-        drone_by_id[drone_id] = drone
-        foe_drones.append(drone)
+        if loop == 0:
+            drone = Drone(drone_id, pos, dead == '1', battery, [])
+            drone_by_id[drone_id] = drone
+            foe_drones.append(drone)
+        else:
+            # update existing drone
+            drone_by_id[drone_id].pos = pos
+            drone_by_id[drone_id].dead = dead == '1'
+            drone_by_id[drone_id].battery = battery
+        
 
     drone_scan_count = int(input())
     for _ in range(drone_scan_count):
@@ -402,27 +544,21 @@ while True:
         my_radar_blips[drone_id].append(RadarBlip(fish_id, dir))
 
     for drone in my_drones:
-        # Init loop
         if loop == 0:
-            drone.role = DroneRole.FAST if drone.drone_id in FAST_COMPATIBLE_POSITIONS else DroneRole.SINKER
+            drone.role = DroneRole.CHASER if drone.drone_id in FAST_COMPATIBLE_POSITIONS else DroneRole.SINKER
 
         # Init each loop
+        print_debug("Drone %s", drone)
         drone.is_light_enabled = loop % 3 == 0
 
         # Loop strategy
         strategies[drone.role](drone)
+
+        # Detect any monsters
+        # In case a monster is detected, evade it !
+        drone.evade_all_monsters()
+
+
         print(drone.get_order_move())
-        print_debug("Drone %s Light: %s", drone.role, drone.is_light_enabled)
 
-
-        # if x > 8000 and target_x == 10000:
-        #     target_x = 0
-        # if x < 1000 and target_x == 0:
-        #     target_y = 0
-        # if x == 0 and y == 0 and target_y == 0:
-        #     target_x = 10000
-        #     target_y = 10000
-
-def run_super_strategy(drone):
-    passinker,
-}
+    loop = loop + 1
