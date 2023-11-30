@@ -280,7 +280,7 @@ class Drone:
     def detect_close_monsters(self):
         MAX_EVASION_LOOPS = 5
         return [fs for fs in fish_global_map.values() \
-                if fs.detail.type == CREATURE_TYPE_MONSTER \
+                if fs.is_monster \
                     and fs.predicted_pos \
                     and dist(self.pos, fs.predicted_pos) < MONSTER_MAX_DETECTION_RADIUS \
                     and loop - fs.is_chasing_us__last_loop.get(self.drone_id,999) < MAX_EVASION_LOOPS]
