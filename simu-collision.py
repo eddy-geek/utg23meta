@@ -72,23 +72,26 @@
 
 import math
 import random
-from typing import Tuple, List  
+from typing import NamedTuple, Tuple, List  
   
 # Define a type alias for clarity  
-Vector = Tuple[float, float]  
+# Vector = Tuple[float, float]  
+class Vector(NamedTuple):
+    x: float
+    y: float
 
 # Define the game parameters
 MAP_SIZE = 10000
 
 MONSTER_INTERACTION_RADIUS = 500
-DRONE_SPEED = 600
+DRONE_MOVE_SPEED = 600
 MONSTER_AGGRESSIVE_SPEED = 500
 
 GRID_SIZE = 50  # printing only
 GRID_CHAR_WIDTH = 200
 
 # Initialize positions
-drone_position: Vector = (0, 0)
+drone_position: Vector = Vector(0, 0)
 bots_positions = [(1300, 500), (1500, 500), (3000, 500), (4000, 2000), (9500, 500), (500, 9500), (9500, 9500), (5000, 5000)]  # Example positions for bots
 
 # add 10 random bots
@@ -98,17 +101,13 @@ for _ in range(10):
         bot = (random.randint(0, MAP_SIZE-1), random.randint(0, MAP_SIZE-1))
     bots_positions.append(bot)
 
-# Function to move the drone towards a target position
-# def move_drone(current_position: Position, target_position: Position, speed: int) -> Position:  
-#     dx = target_position[0] - current_position[0]
-#     dy = target_position[1] - current_position[1]
-#     distance = math.sqrt(dx**2 + dy**2)
-#     if distance <= speed:
-#         return target_position
-#     move_x = (dx / distance) * speed
-#     move_y = (dy / distance) * speed
-#     new_position = (int(current_position[0] + move_x), int(current_position[1] + move_y))
-#     return new_position
+
+
+
+
+
+
+
 
 # Function to move bots towards the drone's position
 def move_bots(bots_positions: List[Vector], drone_position: Vector, speed: int) -> List[Vector]:  
@@ -145,7 +144,7 @@ def predict_bots_movement(bots_positions: List[Vector], drone_position: Vector, 
     predicted_positions = []
     for turn in range(turns_ahead):
         # Move the drone to a new predicted position
-        drone_position = (drone_position[0] + drone_move[0], drone_position[1] + drone_move[1])
+        drone_position = Vector(drone_position[0] + drone_move[0], drone_position[1] + drone_move[1])
         # Move bots towards the latest drone position
         bots_positions = move_bots(bots_positions, drone_position, MONSTER_AGGRESSIVE_SPEED)
         # Store the predicted bots' positions for this turn
@@ -157,7 +156,7 @@ def predict_bots_movement(bots_positions: List[Vector], drone_position: Vector, 
 def move_towards(current_position: Vector, move: Vector) -> Vector:
     new_position = (current_position[0] + move[0], current_position[1] + move[1])
     # Ensure the new position does not exceed the board size
-    new_position = (max(0, min(MAP_SIZE-1, new_position[0])), max(0, min(MAP_SIZE-1, new_position[1])))
+    new_position = Vector(max(0, min(MAP_SIZE-1, new_position[0])), max(0, min(MAP_SIZE-1, new_position[1])))
     return new_position
 
 
@@ -169,7 +168,7 @@ def find_safe_direction(drone_position: Vector, bots_positions: List[Vector], ta
     # Check in all directions
     for angle in range(0, 360, 10):  # Increment by 10 degrees for efficiency, can be adjusted
         rad = math.radians(angle)
-        drone_move = (DRONE_SPEED * math.cos(rad), DRONE_SPEED * math.sin(rad))
+        drone_move = Vector(DRONE_MOVE_SPEED * math.cos(rad), DRONE_MOVE_SPEED * math.sin(rad))
         temp_drone_position = drone_position
         temp_bots_positions = bots_positions.copy()
         safe_for_all_turns = True
@@ -201,7 +200,7 @@ def find_safe_direction(drone_position: Vector, bots_positions: List[Vector], ta
             # We want to maximize safe distance and minimize distance to target
             score = math.log(safety_distance) - distance_to_target
             if score > max_score:
-                best_direction = int(drone_move[0]), int(drone_move[1])
+                best_direction = Vector(int(drone_move[0]), int(drone_move[1]))
                 max_score = score
                 print(f"new best angle {angle}, score {score:.0f} = safety {safety_distance:.0f}|"
                       f"{math.log(safety_distance):.0f} - distance {distance_to_target:.0f} -> direction {best_direction}")
@@ -220,7 +219,7 @@ def find_safe_direction(drone_position: Vector, bots_positions: List[Vector], ta
 def move_drone(drone_position: Vector, bots_positions: List[Vector], target_position) -> Vector:
     target_vector = (target_position[0] - drone_position[0], target_position[1] - drone_position[1])  
     distance_to_target = math.sqrt(target_vector[0]**2 + target_vector[1]**2)  
-    if distance_to_target < DRONE_SPEED:
+    if distance_to_target < DRONE_MOVE_SPEED:
         return target_position
 
     # Find a safe direction to move that avoids predicted collisions with bots
@@ -231,6 +230,16 @@ def move_drone(drone_position: Vector, bots_positions: List[Vector], target_posi
             new_position = find_safe_direction(drone_position, bots_positions, target_position,turns_ahead=1)
 
     return new_position
+
+
+
+
+
+
+
+
+
+
 
 
 # Function to print the game board  
@@ -278,7 +287,7 @@ while True:
 
     # Move the drone towards the target position  
     drone_position = move_drone(drone_position, bots_positions, the_target_position)
-    drone_position = (int(drone_position[0]), int(drone_position[1]))
+    drone_position = Vector(int(drone_position[0]), int(drone_position[1]))
       
     # Move the bots towards the drone's current position  
     bots_positions = move_bots(bots_positions, previous_drone_position, MONSTER_AGGRESSIVE_SPEED)  
