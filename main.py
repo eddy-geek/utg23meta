@@ -326,12 +326,18 @@ class Drone:
         close_monsters = self.detect_close_monsters()
         if close_monsters:
             print_debug("%s detected %d monsters %s", self.name(), len(close_monsters), close_monsters)
-            # 1. Evade only one monster
+            #===========================
+            #     1. Evade only one monster
+            #===========================
             # if dist(self.pos, fish.pos) < 700:
             #     flee(monster)
-            closest = min(close_monsters, key=lambda fish: dist(self.pos, fish.predicted_pos))  # type:ignore (optional)
-            self.evade_monster(closest)
-            # 2. Evade all monsters
+            # closest = min(close_monsters, key=lambda fish: dist(self.pos, fish.predicted_pos))  # type:ignore (optional)
+            # self.evade_monster(closest)
+            #===========================
+            #     2. Evade all monsters
+            #===========================
+            monster_position_vectors = [monster.predicted_pos for monster in close_monsters if monster.predicted_pos]  # type:ignore (optional)
+            move_drone_safely(self.pos, monster_position_vectors, self.target)
 
     def evade_monster(self, monster: FishGlobalState):
         # Turn off lights to start evading
@@ -396,7 +402,7 @@ def update_positions(drones, visible_fish):
             fs.p_distance[drone]  = distance
             if fs.is_monster:
                 fs.is_chasing_us__last_loop[drone] = True
-                if distance < drone.current_light_radius():
+                if distance < drone.current_light_radius():  #? + 300 for monsters ?
                     drone.monsters_nearby[fs.fish_id] = distance
                     fs.is_chasing_us__last_loop[drone] = False
 
@@ -849,9 +855,6 @@ def run_feuille_morte():
         #     State resolution
         #===========================
         if(drone.context["state"] == SinkerState.SINKING):
-            # If there is a monster on the way, evade it
-            #todo TODO: Check if there is a monster on the way + evade going in the targeted direction
-
             # Scan for fishes above
             drone.refresh_radar(my_radar_blips[drone.drone_id])
             # If there is a fish above, go to the specific location
