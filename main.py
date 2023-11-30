@@ -557,6 +557,164 @@ for _ in range(fish_count):
     fish_id, color, _type = map(int, input().split())
     fish_details[fish_id] = FishDetail(color, _type)
 
+
+
+
+
+
+
+
+
+
+
+
+
+#=====================================================================================
+# Smart Evasion strategy
+#=====================================================================================
+
+
+# Function to move bots towards the drone's position
+def move_bots(bots_positions: List[Vector], drone_position: Vector, speed: int) -> List[Vector]:  
+    new_positions = []
+    
+    for bot_position in bots_positions:
+        dx = drone_position[0] - bot_position[0]
+        dy = drone_position[1] - bot_position[1]
+        distance = math.sqrt(dx**2 + dy**2)
+        
+        if distance <= speed:
+            new_positions.append(drone_position)
+        else:
+            move_x = (dx / distance) * speed
+            move_y = (dy / distance) * speed
+            new_position = (int(bot_position[0] + move_x), int(bot_position[1] + move_y))
+            new_positions.append(new_position)
+    
+    return new_positions
+
+
+
+
+# Function to check for collision
+def check_collision(drone_position: Vector, bots_positions: List[Vector]) -> bool:  
+    for bot_position in bots_positions:
+        distance = math.sqrt((drone_position[0] - bot_position[0])**2 + (drone_position[1] - bot_position[1])**2)
+        if distance <= MONSTER_INTERACTION_RADIUS:
+            return True  # Collision detected
+    return False  # No collision
+
+
+def predict_bots_movement(bots_positions: List[Vector], drone_position: Vector, turns_ahead: int, drone_move: Vector) -> List[List[Vector]]:
+    predicted_positions = []
+    for turn in range(turns_ahead):
+        # Move the drone to a new predicted position
+        drone_position = Vector(drone_position[0] + drone_move[0], drone_position[1] + drone_move[1])
+        # Move bots towards the latest drone position
+        bots_positions = move_bots(bots_positions, drone_position, MONSTER_AGGRESSIVE_SPEED)
+        # Store the predicted bots' positions for this turn
+        predicted_positions.append(bots_positions)
+    return predicted_positions
+
+
+# Helper function to move towards a direction by a certain speed
+def move_towards(current_position: Vector, move: Vector) -> Vector:
+    new_position = (current_position[0] + move[0], current_position[1] + move[1])
+    # Ensure the new position does not exceed the board size
+    new_position = Vector(max(0, min(MAP_SIZE-1, new_position[0])), max(0, min(MAP_SIZE-1, new_position[1])))
+    return new_position
+
+
+def find_safe_direction(drone_position: Vector, bots_positions: List[Vector], target_position, turns_ahead) -> Vector:
+    # turns_ahead is How many turns we are simulating
+    best_direction = None
+    max_score = -float('inf')  # Use a scoring system instead of just safe distance
+
+    # Check in all directions
+    for angle in range(0, 360, 10):  # Increment by 10 degrees for efficiency, can be adjusted
+        rad = math.radians(angle)
+        drone_move = Vector(DRONE_MOVE_SPEED * math.cos(rad), DRONE_MOVE_SPEED * math.sin(rad))
+        temp_drone_position = drone_position
+        temp_bots_positions = bots_positions.copy()
+        safe_for_all_turns = True
+
+        # Simulate the movements for the number of turns ahead
+        for turn in range(turns_ahead):
+            # Simulate drone's movement
+            temp_drone_position = move_towards(temp_drone_position, drone_move)
+            
+            # Ensure the drone's new position is within the board boundaries
+            if not (0 <= temp_drone_position[0] < MAP_SIZE and 0 <= temp_drone_position[1] < MAP_SIZE):
+                safe_for_all_turns = False
+                break
+
+            # Simulate bots' movements
+            temp_bots_positions = move_bots(temp_bots_positions, temp_drone_position, MONSTER_AGGRESSIVE_SPEED)
+
+            # Check for collision after bots' movements
+            if check_collision(temp_drone_position, temp_bots_positions):
+                safe_for_all_turns = False
+                break
+
+        # Calculate the score at the end of the simulation
+        if safe_for_all_turns:
+            # Calculate the safety distance
+            safety_distance = min(math.hypot(bot[0] - temp_drone_position[0], bot[1] - temp_drone_position[1]) for bot in temp_bots_positions)
+            # Calculate the distance to the target
+            distance_to_target = math.hypot(target_position[0] - temp_drone_position[0], target_position[1] - temp_drone_position[1])
+            # We want to maximize safe distance and minimize distance to target
+            score = math.log(safety_distance) - distance_to_target
+            if score > max_score:
+                best_direction = Vector(int(drone_move[0]), int(drone_move[1]))
+                max_score = score
+                print(f"new best angle {angle}, score {score:.0f} = safety {safety_distance:.0f}|"
+                      f"{math.log(safety_distance):.0f} - distance {distance_to_target:.0f} -> direction {best_direction}")
+
+    # If a safe direction was found, return the new position in that direction
+    if best_direction is not None:
+        new_drone_position = move_towards(drone_position, best_direction)
+        return new_drone_position
+
+    # If no direction is safe
+    return drone_position
+
+
+
+
+def move_drone_safely(drone_position: Vector, bots_positions: List[Vector], target_position) -> Vector:
+    target_vector = (target_position[0] - drone_position[0], target_position[1] - drone_position[1])  
+    distance_to_target = math.sqrt(target_vector[0]**2 + target_vector[1]**2)  
+    if distance_to_target < DRONE_MOVE_SPEED:
+        return target_position
+
+    # Find a safe direction to move that avoids predicted collisions with bots
+    new_position = find_safe_direction(drone_position, bots_positions, target_position, turns_ahead=3)
+    if new_position == drone_position:
+        new_position = find_safe_direction(drone_position, bots_positions, target_position,turns_ahead=2)
+        if new_position == drone_position:
+            new_position = find_safe_direction(drone_position, bots_positions, target_position,turns_ahead=1)
+
+    return new_position
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 #===================================================================================================
 #                                          Chase strategy
 #===================================================================================================
