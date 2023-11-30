@@ -127,6 +127,7 @@ def check_collision(drone_position: Position, bots_positions: List[Position], dr
             return True  # Collision detected
     return False  # No collision
 
+
 def predict_bots_movement(bots_positions: List[Position], drone_position: Position, turns_ahead: int, drone_move: Position) -> List[List[Position]]:
     predicted_positions = []
     for turn in range(turns_ahead):
@@ -139,10 +140,13 @@ def predict_bots_movement(bots_positions: List[Position], drone_position: Positi
     return predicted_positions
 
 
+# Helper function to move towards a direction by a certain speed
+def move_towards(current_position: Position, move: Position) -> Position:
+    new_position = (current_position[0] + move[0], current_position[1] + move[1])
+    # Ensure the new position does not exceed the board size
+    new_position = (max(0, min(BOARD_SIZE-1, new_position[0])), max(0, min(BOARD_SIZE-1, new_position[1])))
+    return new_position
 
-
-
-# Assuming other parts of the code remain unchanged except for the find_safe_direction function
 
 def find_safe_direction(drone_position: Position, bots_positions: List[Position]) -> Position:
     best_direction = None
@@ -150,41 +154,45 @@ def find_safe_direction(drone_position: Position, bots_positions: List[Position]
     safety_margin = DRONE_DIAMETER / 2 + BOT_DIAMETER / 2  # Full diameter collision margin
     turns_ahead = 3  # How many turns ahead we are checking
 
-    for angle in range(0, 360, 10):
+    # Check in all directions
+    for angle in range(0, 360, 10):  # Increment by 10 degrees for efficiency, can be adjusted
         rad = math.radians(angle)
         drone_move = (DRONE_SPEED * math.cos(rad), DRONE_SPEED * math.sin(rad))
+        temp_drone_position = drone_position
+        temp_bots_positions = bots_positions.copy()
         safe_for_all_turns = True
 
-        # Predict bots' movements for the next three turns based on this potential drone move
-        predicted_positions = predict_bots_movement(bots_positions, drone_position, turns_ahead, drone_move)
-
-        # Check if the drone's predicted path is collision-free over the next three turns
+        # Simulate the movements for the number of turns ahead
         for turn in range(turns_ahead):
-            new_drone_position = (drone_position[0] + drone_move[0] * (turn + 1), drone_position[1] + drone_move[1] * (turn + 1))
+            # Simulate drone's movement
+            temp_drone_position = move_towards(temp_drone_position, drone_move)
             
-            if not (0 <= new_drone_position[0] <= BOARD_SIZE and 0 <= new_drone_position[1] <= BOARD_SIZE):
-                safe_for_all_turns = False
-                break
-            
-            if check_collision(new_drone_position, predicted_positions[turn], DRONE_DIAMETER, BOT_DIAMETER):
+            # Ensure the drone's new position is within the board boundaries
+            if not (0 <= temp_drone_position[0] < BOARD_SIZE and 0 <= temp_drone_position[1] < BOARD_SIZE):
                 safe_for_all_turns = False
                 break
 
+            # Simulate bots' movements
+            temp_bots_positions = move_bots(temp_bots_positions, temp_drone_position, BOT_SPEED)
+
+            # Check for collision after bots' movements
+            if check_collision(temp_drone_position, temp_bots_positions, DRONE_DIAMETER, BOT_DIAMETER):
+                safe_for_all_turns = False
+                break
+
+        # Calculate the safety distance at the end of the simulation
         if safe_for_all_turns:
-            # Calculate the minimum safe distance to the bots at the final predicted position
-            final_drone_position = new_drone_position
-            min_safe_distance = min(math.hypot(bot[0] - final_drone_position[0], bot[1] - final_drone_position[1]) for bot in predicted_positions[-1])
+            min_safe_distance = min(math.hypot(bot[0] - temp_drone_position[0], bot[1] - temp_drone_position[1]) for bot in temp_bots_positions)
             if min_safe_distance > max_safe_distance:
                 best_direction = drone_move
                 max_safe_distance = min_safe_distance
 
     # If a safe direction was found, return the new position in that direction
     if best_direction is not None:
-        new_drone_position = (drone_position[0] + best_direction[0], drone_position[1] + best_direction[1])
+        new_drone_position = move_towards(drone_position, best_direction)
         return new_drone_position
 
     return drone_position
-
 
 
 
