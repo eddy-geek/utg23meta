@@ -11,7 +11,7 @@
 # first write the python code simulating this game. explain your reasoning.
 
 #2
-# Add code to print an overview of the game board into ascii art at every turn:
+# Add code to log an overview of the game board into ascii art at every turn:
 # the board is summarized into a 200 by 200 grid of characters, one character for each square of 50 by 50 pixels.
 # this character is an "O" if my drone overlaps this square, an "X" if an enemy bot overlaps the square, a "$" if both overlap.
 
@@ -85,31 +85,15 @@ DRONE_SPEED = 600
 BOT_SPEED = 500
 TARGET_POSITION = (9999, 9999)
 
-GRID_SIZE = 50  # printing only
+GRID_SIZE = 50  # loging only
 GRID_CHAR_WIDTH = 200
+
+log = print
 
 # Initialize positions
 drone_position: Position = (0, 0)
 bots_positions = [(1300, 500), (1500, 500), (3000, 500), (4000, 2000), (9500, 500), (500, 9500), (9500, 9500), (5000, 5000)]  # Example positions for bots
 
-# add 10 random bots
-for _ in range(10): 
-    bot = (0, 0)
-    while bot[0]**2 + bot[1]**2 < 2000**2:
-        bot = (random.randint(0, BOARD_SIZE-1), random.randint(0, BOARD_SIZE-1))
-    bots_positions.append(bot)
-
-# Function to move the drone towards a target position
-# def move_drone(current_position: Position, target_position: Position, speed: int) -> Position:  
-#     dx = target_position[0] - current_position[0]
-#     dy = target_position[1] - current_position[1]
-#     distance = math.sqrt(dx**2 + dy**2)
-#     if distance <= speed:
-#         return target_position
-#     move_x = (dx / distance) * speed
-#     move_y = (dy / distance) * speed
-#     new_position = (int(current_position[0] + move_x), int(current_position[1] + move_y))
-#     return new_position
 
 # Function to move bots towards the drone's position
 def move_bots(bots_positions: List[Position], drone_position: Position, speed: int) -> List[Position]:  
@@ -207,7 +191,7 @@ def find_safe_direction(drone_position: Position, bots_positions: List[Position]
             if score > max_score:
                 best_direction = int(drone_move[0]), int(drone_move[1])
                 max_score = score
-                print(f"new best angle {angle}, score {score:.0f} = safety {safety_distance:.0f}|"
+                log(f"new best angle {angle}, score {score:.0f} = safety {safety_distance:.0f}|"
                       f"{math.log(safety_distance):.0f} - distance {distance_to_target:.0f} -> direction {best_direction}")
 
     # If a safe direction was found, return the new position in that direction
@@ -237,8 +221,8 @@ def move_drone(drone_position: Position, bots_positions: List[Position]) -> Posi
     return new_position
 
 
-# Function to print the game board  
-def print_board(drone_position: Position, bots_positions: List[Position]) -> None:  
+# Function to log the game board  
+def log_board(drone_position: Position, bots_positions: List[Position]) -> None:  
     board = [[' ' for _ in range(GRID_SIZE)] for _ in range(GRID_SIZE)]  
       
     # Place the drone on the board  
@@ -263,47 +247,112 @@ def print_board(drone_position: Position, bots_positions: List[Position]) -> Non
         else:  
             board[bot_y][bot_x] = '1'  
       
-    # Print the board  
-    print('_' * (GRID_SIZE + 2))
+    # log the board  
+    log('_' * (GRID_SIZE + 2))
     for row in board:  
-        print('|' + ''.join(row) + '|')
-    print('_' * (GRID_SIZE + 2))
+        log('|' + ''.join(row) + '|')
+    log('_' * (GRID_SIZE + 2))
 
-loop = 0
-print(f"{loop}: Drone: {drone_position}; Bots: {bots_positions}")
-print_board(drone_position, bots_positions)  
 
-# Main game loop  
-while True:  
-    loop +=1
+def main_loop():
+    # Initialize positions
+    drone_position = (0, 0)
+    bots_positions = [(1300, 500), (1500, 500), (3000, 500), (4000, 2000), (9500, 500), (500, 9500), (9500, 9500), (5000, 5000)]
 
-    previous_drone_position = drone_position
+    # add 10 random bots
+    for _ in range(10): 
+        bot = (0, 0)
+        while bot[0]**2 + bot[1]**2 < 2000**2:
+            bot = (random.randint(0, BOARD_SIZE-1), random.randint(0, BOARD_SIZE-1))
+        bots_positions.append(bot)
 
-    # Move the drone towards the target position  
-    drone_position = move_drone(drone_position, bots_positions)
-    drone_position = (int(drone_position[0]), int(drone_position[1]))
-      
-    # Move the bots towards the drone's current position  
-    bots_positions = move_bots(bots_positions, previous_drone_position, BOT_SPEED)  
-      
-     # For visualization purposes, you may want to include a print statement or graphics to show positions
-    print(f"{loop}: Drone: {drone_position}; Bots: {bots_positions}")
+    loop = 0
+    log(f"{loop}: Drone: {drone_position}; Bots: {bots_positions}")
+    log_board(drone_position, bots_positions)  
 
-    # Check for collision  
-    if check_collision(drone_position, bots_positions):  
-        print_board(drone_position, bots_positions)  
-        print("Game Over: The drone has been caught by an enemy bot.")  
-        break  
-      
-    # Check if the drone has reached the target position  
-    if drone_position == TARGET_POSITION:  
-        print_board(drone_position, bots_positions)  
-        print("Victory: The drone has successfully reached the target position!")  
-        break  
-  
-    # Print the board at each turn  
-    print_board(drone_position, bots_positions)  
+    # Main game loop  
+    while True:  
+        loop +=1
 
-    if loop == 100:
-        print("Game Over: The drone has run out of turns.")
-        break
+        previous_drone_position = drone_position
+
+        # Move the drone towards the target position  
+        drone_position = move_drone(drone_position, bots_positions)
+        drone_position = (int(drone_position[0]), int(drone_position[1]))
+        
+        # Move the bots towards the drone's current position  
+        bots_positions = move_bots(bots_positions, previous_drone_position, BOT_SPEED)  
+        
+        # For visualization purposes, you may want to include a log statement or graphics to show positions
+        log(f"{loop}: Drone: {drone_position}; Bots: {bots_positions}")
+
+
+
+
+
+# def main_loop():
+#     # Initialize positions
+#     drone_position: Vector = Vector(0, 0)
+#     bots_positions = [Vector(*t) for t in [(1300, 500), (1500, 500), (3000, 500), (4000, 2000), (9500, 500), (500, 9500), (9500, 9500), (5000, 5000)]]
+
+#     # add 10 random bots
+#     for _ in range(10): 
+#         bot = (0, 0)
+#         while bot[0]**2 + bot[1]**2 < 2000**2:
+#             bot = (random.randint(0, BOARD_SIZE-1), random.randint(0, BOARD_SIZE-1))
+#         bots_positions.append(bot)
+
+#     loop = 0
+#     log(f"{loop}: Drone: {drone_position}; Bots: {bots_positions}")
+#     log_board(drone_position, bots_positions)  
+
+#     # Main game loop  
+#     while True:  
+#         loop +=1
+#         the_target_position = (9999, 9999)
+
+#         previous_drone_position = drone_position
+
+#         # Move the drone towards the target position  
+#         drone_position = move_drone(drone_position, bots_positions, the_target_position)
+#         drone_position = (int(drone_position[0]), int(drone_position[1]))
+        
+#         # Move the bots towards the drone's current position  
+#         bots_positions = move_bots(bots_positions, previous_drone_position, MONSTER_AGGRESSIVE_SPEED)  
+        
+#         # For visualization purposes, you may want to include a log statement or graphics to show positions
+#         log(f"{loop}: Drone: {drone_position}; Bots: {bots_positions}")
+
+        # Check for collision  
+        if check_collision(drone_position, bots_positions):  
+            log_board(drone_position, bots_positions)  
+            log("Game Over: The drone has been caught by an enemy bot.")  
+            return 0
+        
+        # Check if the drone has reached the target position  
+        if drone_position == TARGET_POSITION:  
+            log_board(drone_position, bots_positions)  
+            log("Victory: The drone has successfully reached the target position!")  
+            return 1
+    
+        # log the board at each turn  
+        log_board(drone_position, bots_positions)  
+
+        if loop == 100:
+            log("Game Over: The drone has run out of turns.")
+            return 0
+
+
+def make_stats(nruns=100):
+    global log
+    log = lambda *args, **kwargs: None
+
+    succ = 0
+    for _ in range(nruns):
+        succ += main_loop()
+
+    print(succ * 100 / nruns, '% of success')
+
+
+# main_loop()
+make_stats(1000)
