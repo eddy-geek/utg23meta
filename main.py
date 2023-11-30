@@ -194,6 +194,7 @@ class DroneRole(Enum):
     SINKER_MID2 = 3
     FAST = 4
     CHASER = 5
+    FEUILLE_MORTE = 6
 
 SINKER_COMPATIBLE_POSITIONS = (1, 2)
 FAST_COMPATIBLE_POSITIONS = (0, 3)
@@ -232,7 +233,7 @@ class FishGlobalState:
         self.last_seen_speed = None
         self.is_chasing_us__last_loop = {}
         self.p_distance = {}
-        
+
     def __str__(self):
         return f"FishGlobalState {self.fish_id} {self.detail} {self.is_monster} {self.last_seen_loop} {self.predicted_pos} {self.last_seen_speed} {self.is_chasing_us__last_loop} {self.p_distance}"
 
@@ -243,6 +244,33 @@ class FishGlobalState:
 def clamp(value, min_value=0, max_value=10000):
     return max(min(value, max_value), min_value)
 
+class Radar:
+    detected: dict[str, list[RadarBlip]]
+
+    def __init__(self) -> None:
+        self.drone = drone
+        self.detected = {
+            RADAR_TOP_LEFT: [],
+            RADAR_TOP_RIGHT: [],
+            RADAR_BOTTOM_LEFT: [],
+            RADAR_BOTTOM_RIGHT: [],
+        }
+
+    def get_blips(self, direction: str) -> list[RadarBlip]:
+        return self.detected[direction]
+
+    def scan(self, radar_blips: list[RadarBlip]) -> None:
+        for blip in radar_blips:
+          if blip.dir == RADAR_TOP_LEFT:
+              self.detected[RADAR_TOP_LEFT].append(blip)
+          elif blip.dir == RADAR_TOP_RIGHT:
+              self.detected[RADAR_TOP_RIGHT].append(blip)
+          elif blip.dir == RADAR_BOTTOM_LEFT:
+              self.detected[RADAR_BOTTOM_LEFT].append(blip)
+          elif blip.dir == RADAR_BOTTOM_RIGHT:
+              self.detected[RADAR_BOTTOM_RIGHT].append(blip)
+          else:
+              raise ValueError("Invalid blip direction")
 
 class Drone:
     drone_id: int
@@ -256,6 +284,7 @@ class Drone:
     is_light_enabled: bool
     context: Dict[str, object]
     monsters_nearby = Dict[int, int]
+    radar: Radar
 
     def __init__(self, drone_id, pos: Vector, dead, battery, scans):
         self.drone_id = drone_id
@@ -270,6 +299,7 @@ class Drone:
         self.state = None
         self.context = {}
         self.monsters_nearby = {}
+        self.radar = Radar()
 
     def get_order_move(self):
         str_light = f"{1 if self.is_light_enabled else 0}"
@@ -322,6 +352,27 @@ class Drone:
     def current_light_radius(self):
         return DRONE_LIGHT_RADIUS_POWERFUL if self.is_light_enabled else DRONE_LIGHT_RADIUS
 
+    #---------------------------
+    #     Radar control
+    #---------------------------
+    def refresh_radar(self, radar_blips: list[RadarBlip]):
+        self.radar.scan(radar_blips)
+
+    def get_radar_blips(self, direction: str) -> list[RadarBlip]:
+        return self.radar.get_blips(direction)
+
+    def get_radar_blips_count(self, *directions: list[str]) -> int:
+        return sum([len(self.get_radar_blips(direction)) for direction in directions])
+
+    def get_radar_blips_unscanned_fish_count(self, *directions: list[str]) -> int:
+        global scan_list
+        unscanned_fish_blips = []
+        for direction in directions:
+            for blip in self.get_radar_blips(direction):
+                if blip.fish_id not in scan_list and not fish_global_map[blip.fish_id].is_monster:
+                    print_debug("%s found unscanned fish %d", self.name(), blip.fish_id)
+                    unscanned_fish_blips.append(blip)
+        return len(unscanned_fish_blips)
 
 # FishId is type alias int
 FishId = int
@@ -586,12 +637,87 @@ def run_sinker(y_max_depth, is_full=False):
         #     drone.target = Vector(drone.pos.x, 499)
     return inner
 
+#===================================================================================================
+#                                          feuille morte strategy
+# Each drone has a split of the map to scan
+# Each drone will go to the bottom center of its split (x=2500, y=10000)/(x=7500, y=10000)
+# Each drone will start the light every 5 rounds
+# Each drone will use the radar to check if there is a fish above
+# When a fish is found, the drone will go the a specific location in the direction of the fish (L or R)
+# Once the fish is no longer detected, the drone will go back to the bottom center of its split
+"""
+|     o     |     o     |
+|     ↓     |           |
+|  L  ↓  R  |  L  ↓  R  |
+|     ↓     |           |
+|     ↓     |           |
+|     ↓→→→→↟|           |
+|___________|___________|
+x=0         x=5000      x=10000
+Left bot:
+  - L:    x=1500 (X - 1000)
+  - R:    x=3500 (X + 1000)
+  - rise: x=R
+Right bot:
+  - L:    x=6500 (X - 1000)
+  - R:    x=8500 (X + 1000)
+  - rise: x=L
+"""
+#===================================================================================================
+def run_feuille_morte():
+    def init(drone: Drone):
+      drone.context["side"] = SinkerSide.LEFT if drone.pos.x < 5000 else SinkerSide.RIGHT
+      drone.context["state"] = SinkerState.SINKING
+
+    def inner(drone: Drone):
+        if loop == 0:
+            init(drone)
+
+        # Tag all fish already scanned by any drone
+
+
+        #===========================
+        #     State check
+        #===========================
+        # Drone is at the bottom of the map, need to go to the middle
+        if drone.pos.y >= 8000 and drone.context["state"] == SinkerState.SINKING:
+            drone.context["state"] = SinkerState.CROSSING
+        # Drone is at the middle of the map, need to go to the top
+        elif 3750 <= drone.pos.x <= 6250 and drone.context["state"] == SinkerState.CROSSING:
+            drone.context["state"] = SinkerState.RISING
+
+        #===========================
+        #     State resolution
+        #===========================
+        if(drone.context["state"] == SinkerState.SINKING):
+            # If there is a monster on the way, evade it
+            #todo TODO: Check if there is a monster on the way + evade going in the targeted direction
+
+            # Scan for fishes above
+            drone.refresh_radar(my_radar_blips[drone.drone_id])
+            # If there is a fish above, go to the specific location
+            if drone.get_radar_blips_unscanned_fish_count(RADAR_TOP_LEFT):  #? Can be improved by giving a drone a preference on a side to go first
+              print_debug("%s found fish above left", drone.drone_id)
+              drone.target = Vector(1500 if drone.context["side"] == SinkerSide.LEFT else 6500, 10000)
+            elif drone.get_radar_blips_unscanned_fish_count(RADAR_TOP_RIGHT):
+              print_debug("%s found fish above right", drone.drone_id)
+              drone.target = Vector(3500 if drone.context["side"] == SinkerSide.LEFT else 8500, 10000)
+            else:
+              # Nothing detected, go to the middle
+              drone.target = Vector(2500 if drone.context["side"] == SinkerSide.LEFT else 7500, 10000)
+        elif(drone.context["state"] == SinkerState.CROSSING):
+            drone.target = Vector(3500 if drone.context["side"] == SinkerSide.LEFT else 6500, 7000)
+        elif(drone.context["state"] == SinkerState.RISING):
+            drone.target = Vector(3500 if drone.context["side"] == SinkerSide.LEFT else 6500, 0)
+    return inner
+
 strategies = {
     DroneRole.FAST: run_fast,
     DroneRole.SINKER_LOW: run_sinker(8000),
     DroneRole.SINKER_MID1: run_sinker(3750, is_full=True),
     DroneRole.SINKER_MID2: run_sinker(6250),
     DroneRole.CHASER: run_chase,
+    DroneRole.FEUILLE_MORTE: run_feuille_morte,
 }
 
 loop = 0
@@ -671,9 +797,22 @@ while True:
         fish_id = int(fish_id)
         my_radar_blips[drone_id].append(RadarBlip(fish_id, dir))
 
+    # Retrieve the list of all scans done by all drones and scored ones
+    def update_scan_status(drones: list[Drone], my_scans: list[int]):
+        scan_list = []
+        for drone in drones:
+            for scan in drone.scans:
+                if scan not in scan_list:
+                    scan_list.append(scan)
+        for scan in my_scans:
+            if scan not in scan_list:
+                scan_list.append(scan)
+        return scan_list
+
     # print_debug("my_radar_blips %s", my_radar_blips)
     # call once
     update_positions(my_drones, visible_fish)
+    scan_list = update_scan_status(my_drones, my_scans)
 
     for drone in my_drones:
         if loop == 0:
