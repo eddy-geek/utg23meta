@@ -629,4 +629,3 @@ while True:
         print(drone.get_order_move())
 
     loop = loop + 1
-    loop = loop + 1
