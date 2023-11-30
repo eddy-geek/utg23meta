@@ -156,7 +156,7 @@ def move_towards(current_position: Position, move: Position) -> Position:
 
 def find_safe_direction(drone_position: Position, bots_positions: List[Position]) -> Position:
     best_direction = None
-    max_safe_distance = -1
+    max_score = -float('inf')  # Use a scoring system instead of just safe distance
     turns_ahead = 3  # How many turns ahead we are checking
 
     # Check in all directions
@@ -185,18 +185,24 @@ def find_safe_direction(drone_position: Position, bots_positions: List[Position]
                 safe_for_all_turns = False
                 break
 
-        # Calculate the safety distance at the end of the simulation
+        # Calculate the score at the end of the simulation
         if safe_for_all_turns:
-            min_safe_distance = min(math.hypot(bot[0] - temp_drone_position[0], bot[1] - temp_drone_position[1]) for bot in temp_bots_positions)
-            if min_safe_distance > max_safe_distance:
+            # Calculate the safety distance
+            safety_distance = min(math.hypot(bot[0] - temp_drone_position[0], bot[1] - temp_drone_position[1]) for bot in temp_bots_positions)
+            # Calculate the distance to the target
+            distance_to_target = math.hypot(TARGET_POSITION[0] - temp_drone_position[0], TARGET_POSITION[1] - temp_drone_position[1])
+            # We want to maximize safe distance and minimize distance to target
+            score = math.log(safety_distance) - distance_to_target
+            if score > max_score:
                 best_direction = drone_move
-                max_safe_distance = min_safe_distance
+                max_score = score
 
     # If a safe direction was found, return the new position in that direction
     if best_direction is not None:
         new_drone_position = move_towards(drone_position, best_direction)
         return new_drone_position
 
+    # If no direction is safe
     return drone_position
 
 
