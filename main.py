@@ -412,46 +412,6 @@ while True:
         # Loop strategy
         strategies[drone.role](drone)
         print(drone.get_order_move())
-
-
-
-        # TODO: Implement logic on where to move here
-
-        # Drone 0 should go to the middle of the map
-        if drone.role == DroneRole.FAST:
-            drone.is_light_enabled = not is_monster_close(drone) and drone.is_light_enabled
-            if drone.pos.x % 800 == 0:
-                drone.target = Vector(drone.target.x + 1600, FAST_MAX_DEPTH if drone.target.y < 500 else 499)
-            print(drone.get_order_move())
-
-        # Drone 1 should go to the bottom and racler le fond
-        else:
-            if loop == 0:
-                drone_sinker_clockwise = drone.pos.x > 5000
-            drone.is_light_enabled = not is_monster_close(drone) and loop % 5 == 0
-
-            if drone.state == None:
-                drone.state = DroneState.SINKER_SINKING
-                drone.clockwise = drone.pos.x > 5000 
-            if drone.pos.y == 8000 and drone.state == DroneState.SINKER_SINKING:
-                drone.state = DroneState.SINKER_CROSSING
-            elif drone.pos.y == 8000 and drone.state == DroneState.SINKER_CROSSING and (drone.pos.x in (2000, 8000)):
-                drone.state = DroneState.SINKER_RISING
-            elif drone.pos.y == 500 and drone.state == DroneState.SINKER_RISING:
-                drone.state = DroneState.SINKER_SINKING
-
-            BOTTOM_POWERFUL_LIGHT_THRESHOLD = 8000  # units (u) 
-            bottom_left_corner_light = Vector(DRONE_LIGHT_RADIUS_POWERFUL, BOTTOM_POWERFUL_LIGHT_THRESHOLD)
-            bottom_right_corner_light = Vector(10000 - DRONE_LIGHT_RADIUS_POWERFUL, BOTTOM_POWERFUL_LIGHT_THRESHOLD)
-
-            if(drone.state == DroneState.SINKER_SINKING):
-                drone.target = Vector(8000 if drone.clockwise else 2000, 8000)
-            elif(drone.state == DroneState.SINKER_CROSSING):
-                drone.target = Vector(2000 if drone.clockwise else 8000, 8000)
-            elif(drone.state == DroneState.SINKER_RISING):
-                drone.target = Vector(drone.pos.x, 500)
-            print(drone.get_order_move())
-
         print_debug("Drone %s Light: %s", drone.role, drone.is_light_enabled)
 
 
