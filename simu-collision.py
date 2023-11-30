@@ -90,18 +90,9 @@ MONSTER_AGGRESSIVE_SPEED = 500
 GRID_SIZE = 50  # printing only
 GRID_CHAR_WIDTH = 200
 
-# Initialize positions
-drone_position: Vector = Vector(0, 0)
-bots_positions = [(1300, 500), (1500, 500), (3000, 500), (4000, 2000), (9500, 500), (500, 9500), (9500, 9500), (5000, 5000)]  # Example positions for bots
+global drone_position, bots_positions
 
-# add 10 random bots
-for _ in range(10): 
-    bot = (0, 0)
-    while bot[0]**2 + bot[1]**2 < 2000**2:
-        bot = (random.randint(0, MAP_SIZE-1), random.randint(0, MAP_SIZE-1))
-    bots_positions.append(bot)
-
-
+debug = print
 
 
 
@@ -193,16 +184,20 @@ def find_safe_direction(drone_position: Vector, bots_positions: List[Vector], ta
 
         # Calculate the score at the end of the simulation
         if safe_for_all_turns:
+            # further from 1000, malus is 0 ; in a corner, malus is 2000:
+            wall1_malus = lambda dist: 1000 - min(dist, 1000)
+            wall_malus = wall1_malus(temp_drone_position[0]) + wall1_malus(temp_drone_position[1]) \
+                + wall1_malus(MAP_SIZE - temp_drone_position[0]) + wall1_malus(MAP_SIZE - temp_drone_position[1])
             # Calculate the safety distance
             safety_distance = min(math.hypot(bot[0] - temp_drone_position[0], bot[1] - temp_drone_position[1]) for bot in temp_bots_positions)
             # Calculate the distance to the target
             distance_to_target = math.hypot(target_position[0] - temp_drone_position[0], target_position[1] - temp_drone_position[1])
             # We want to maximize safe distance and minimize distance to target
-            score = math.log(safety_distance) - distance_to_target
+            score = math.log(safety_distance) - distance_to_target #- wall_malus
             if score > max_score:
                 best_direction = Vector(int(drone_move[0]), int(drone_move[1]))
                 max_score = score
-                print(f"new best angle {angle}, score {score:.0f} = safety {safety_distance:.0f}|"
+                debug(f"new best angle {angle}, score {score:.0f} = safety {safety_distance:.0f}|"
                       f"{math.log(safety_distance):.0f} - distance {distance_to_target:.0f} -> direction {best_direction}")
 
     # If a safe direction was found, return the new position in that direction
@@ -269,47 +264,76 @@ def print_board(drone_position: Vector, bots_positions: List[Vector]) -> None:
             board[bot_y][bot_x] = '1'  
       
     # Print the board  
-    print('_' * (GRID_SIZE + 2))
+    debug('_' * (GRID_SIZE + 2))
     for row in board:  
-        print('|' + ''.join(row) + '|')
-    print('_' * (GRID_SIZE + 2))
+        debug('|' + ''.join(row) + '|')
+    debug('_' * (GRID_SIZE + 2))
 
-loop = 0
-print(f"{loop}: Drone: {drone_position}; Bots: {bots_positions}")
-print_board(drone_position, bots_positions)  
 
-# Main game loop  
-while True:  
-    loop +=1
-    the_target_position = (9999, 9999)
 
-    previous_drone_position = drone_position
+def main_loop():
+    # Initialize positions
+    drone_position: Vector = Vector(0, 0)
+    bots_positions = [(1300, 500), (1500, 500), (3000, 500), (4000, 2000), (9500, 500), (500, 9500), (9500, 9500), (5000, 5000)]  # Example positions for bots
 
-    # Move the drone towards the target position  
-    drone_position = move_drone(drone_position, bots_positions, the_target_position)
-    drone_position = Vector(int(drone_position[0]), int(drone_position[1]))
-      
-    # Move the bots towards the drone's current position  
-    bots_positions = move_bots(bots_positions, previous_drone_position, MONSTER_AGGRESSIVE_SPEED)  
-      
-     # For visualization purposes, you may want to include a print statement or graphics to show positions
-    print(f"{loop}: Drone: {drone_position}; Bots: {bots_positions}")
+    # add 10 random bots
+    for _ in range(10): 
+        bot = (0, 0)
+        while bot[0]**2 + bot[1]**2 < 2000**2:
+            bot = (random.randint(0, MAP_SIZE-1), random.randint(0, MAP_SIZE-1))
+        bots_positions.append(bot)
 
-    # Check for collision  
-    if check_collision(drone_position, bots_positions):  
-        print_board(drone_position, bots_positions)  
-        print("Game Over: The drone has been caught by an enemy bot.")  
-        break  
-      
-    # Check if the drone has reached the target position  
-    if drone_position == the_target_position:  
-        print_board(drone_position, bots_positions)  
-        print("Victory: The drone has successfully reached the target position!")  
-        break  
-  
-    # Print the board at each turn  
+    loop = 0
+    debug(f"{loop}: Drone: {drone_position}; Bots: {bots_positions}")
     print_board(drone_position, bots_positions)  
 
-    if loop == 100:
-        print("Game Over: The drone has run out of turns.")
-        break
+    # Main game loop  
+    while True:  
+        loop +=1
+        the_target_position = (9999, 9999)
+
+        previous_drone_position = drone_position
+
+        # Move the drone towards the target position  
+        drone_position = move_drone(drone_position, bots_positions, the_target_position)
+        drone_position = Vector(int(drone_position[0]), int(drone_position[1]))
+        
+        # Move the bots towards the drone's current position  
+        bots_positions = move_bots(bots_positions, previous_drone_position, MONSTER_AGGRESSIVE_SPEED)  
+        
+        # For visualization purposes, you may want to include a print statement or graphics to show positions
+        debug(f"{loop}: Drone: {drone_position}; Bots: {bots_positions}")
+
+        # Check for collision  
+        if check_collision(drone_position, bots_positions):  
+            print_board(drone_position, bots_positions)  
+            debug("Game Over: The drone has been caught by an enemy bot.")  
+            return 0
+        
+        # Check if the drone has reached the target position  
+        if drone_position == the_target_position:  
+            print_board(drone_position, bots_positions)  
+            debug("Victory: The drone has successfully reached the target position!")  
+            return 1
+    
+        # Print the board at each turn  
+        print_board(drone_position, bots_positions)  
+
+        if loop == 100:
+            debug("Game Over: The drone has run out of turns.")
+            return 0
+
+
+def make_stats(nruns=100):
+    global debug
+    debug = lambda *args, **kwargs: None
+
+    succ = 0
+    for _ in range(nruns):
+        succ += main_loop()
+
+    print(succ * 100 / nruns, '% of success')
+
+
+# main_loop()
+make_stats(1000)
