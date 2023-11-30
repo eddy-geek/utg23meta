@@ -49,6 +49,9 @@
 from typing import List, NamedTuple, Dict
 
 # Define the data structures as namedtuples
+#===========================================================================
+#                            Classes
+#===========================================================================
 class Vector(NamedTuple):
     x: int
     y: int
@@ -74,6 +77,30 @@ class Drone(NamedTuple):
     battery: int
     scans: List[int]
 
+# enum dronesinkerstate
+class DroneSinkerState:
+    SINKING = 1
+    CROSSING = 2
+    RISING = 3
+
+drone_sinker_clockwise = DroneSinkerState.SINKING
+drone_sinker_waiting = True
+
+drone_sinker_target = Vector(0, 0)
+drone_fast_target = Vector(0, 0)
+drone_sinker = 1
+drone_fast = 0
+
+#===========================================================================
+#                            Functions
+#===========================================================================
+def order_move(target: Vector, light: int):
+    print(f"MOVE {target.x} {target.y} {light}")
+
+def order_wait(light: int):
+    print(f"WAIT {light}")
+
+
 fish_details: Dict[int, FishDetail] = {}
 
 fish_count = int(input())
@@ -81,14 +108,11 @@ for _ in range(fish_count):
     fish_id, color, _type = map(int, input().split())
     fish_details[fish_id] = FishDetail(color, _type)
 
-target_x = 10000
-target_y = 10000
-i = 0
 
-
+loop = 0
 # game loop
 while True:
-    i = i + 1
+    loop = loop + 1
     my_scans: List[int] = []
     foe_scans: List[int] = []
     drone_by_id: Dict[int, Drone] = {}
@@ -149,16 +173,39 @@ while True:
     for drone in my_drones:
         x = drone.pos.x
         y = drone.pos.y
+        is_light_enabled = 1 if loop % 3 == 0 else 0
+        fast_depth = 3000
         # TODO: Implement logic on where to move here
 
-        if x > 8000 and target_x == 10000:
-            target_x = 0
-        if x < 1000 and target_x == 0:
-            target_y = 0
-        if x == 0 and y == 0 and target_y == 0:
-            target_x = 10000
-            target_y = 10000
+        # Drone 0 should go to the middle of the map
+        if drone.drone_id == drone_fast:
+            if x % 800 == 0:
+                drone_fast_target = Vector(drone_fast_target.x + 1600, fast_depth if drone_fast_target.y < 500 else 499)
+            order_move(drone_fast_target, is_light_enabled)
 
-        light = 1 if i % 3 == 0 else 0
+        # Drone 1 should go to the bottom and racler le fond
+        else:
+            if loop == 0:
+                drone_sinker_clockwise = drone.pos.x > 5000
+            is_light_enabled = y >= 8000
 
-        print(f"MOVE {target_x} {target_y} {light}")
+            if y == 8000 and drone_sinker_state == DroneSinkerState.SINKING:
+                drone_sinker_state = DroneSinkerState.CROSSING
+            elif y == 8000 and drone_sinker_state == DroneSinkerState.CROSSING and (drone.pos.x in (2000, 8000)):
+                drone_sinker_state == DroneSinkerState.RISING
+
+            if(drone_sinker_state == DroneSinkerState.SINKING):
+                drone_sinker_target = Vector(8000 if drone_sinker_clockwise else 2000, 8000)
+            elif(drone_sinker_state == DroneSinkerState.CROSSING):
+                drone_sinker_target = Vector(2000 if drone_sinker_clockwise else 8000, 8000)
+            elif(drone_sinker_state == DroneSinkerState.RISING):
+                drone_sinker_target = Vector(drone.pos.x, 500)
+            order_move(drone_sinker_target, is_light_enabled)
+
+        # if x > 8000 and target_x == 10000:
+        #     target_x = 0
+        # if x < 1000 and target_x == 0:
+        #     target_y = 0
+        # if x == 0 and y == 0 and target_y == 0:
+        #     target_x = 10000
+        #     target_y = 10000
