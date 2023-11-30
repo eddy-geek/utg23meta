@@ -286,43 +286,6 @@ def main_loop():
         # For visualization purposes, you may want to include a log statement or graphics to show positions
         log(f"{loop}: Drone: {drone_position}; Bots: {bots_positions}")
 
-
-
-
-
-# def main_loop():
-#     # Initialize positions
-#     drone_position: Vector = Vector(0, 0)
-#     bots_positions = [Vector(*t) for t in [(1300, 500), (1500, 500), (3000, 500), (4000, 2000), (9500, 500), (500, 9500), (9500, 9500), (5000, 5000)]]
-
-#     # add 10 random bots
-#     for _ in range(10): 
-#         bot = (0, 0)
-#         while bot[0]**2 + bot[1]**2 < 2000**2:
-#             bot = (random.randint(0, BOARD_SIZE-1), random.randint(0, BOARD_SIZE-1))
-#         bots_positions.append(bot)
-
-#     loop = 0
-#     log(f"{loop}: Drone: {drone_position}; Bots: {bots_positions}")
-#     log_board(drone_position, bots_positions)  
-
-#     # Main game loop  
-#     while True:  
-#         loop +=1
-#         the_target_position = (9999, 9999)
-
-#         previous_drone_position = drone_position
-
-#         # Move the drone towards the target position  
-#         drone_position = move_drone(drone_position, bots_positions, the_target_position)
-#         drone_position = (int(drone_position[0]), int(drone_position[1]))
-        
-#         # Move the bots towards the drone's current position  
-#         bots_positions = move_bots(bots_positions, previous_drone_position, MONSTER_AGGRESSIVE_SPEED)  
-        
-#         # For visualization purposes, you may want to include a log statement or graphics to show positions
-#         log(f"{loop}: Drone: {drone_position}; Bots: {bots_positions}")
-
         # Check for collision  
         if check_collision(drone_position, bots_positions):  
             log_board(drone_position, bots_positions)  
