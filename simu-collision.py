@@ -71,6 +71,7 @@
 
 
 import math
+import random
 from typing import Tuple, List  
   
 # Define a type alias for clarity  
@@ -82,7 +83,7 @@ DRONE_DIAMETER = 250
 BOT_DIAMETER = 250
 DRONE_SPEED = 600
 BOT_SPEED = 500
-TARGET_POSITION = (10000, 10000)
+TARGET_POSITION = (9999, 9999)
 
 GRID_SIZE = 50  # printing only
 GRID_CHAR_WIDTH = 200
@@ -90,6 +91,13 @@ GRID_CHAR_WIDTH = 200
 # Initialize positions
 drone_position: Position = (0, 0)
 bots_positions = [(1300, 500), (1500, 500), (3000, 500), (4000, 2000), (9500, 500), (500, 9500), (9500, 9500), (5000, 5000)]  # Example positions for bots
+
+# add 10 random bots
+for _ in range(10): 
+    bot = (0, 0)
+    while bot[0]**2 + bot[1]**2 < 2000**2:
+        bot = (random.randint(0, BOARD_SIZE-1), random.randint(0, BOARD_SIZE-1))
+    bots_positions.append(bot)
 
 # Function to move the drone towards a target position
 # def move_drone(current_position: Position, target_position: Position, speed: int) -> Position:  
@@ -157,10 +165,10 @@ def move_towards(current_position: Position, move: Position) -> Position:
     return new_position
 
 
-def find_safe_direction(drone_position: Position, bots_positions: List[Position]) -> Position:
+def find_safe_direction(drone_position: Position, bots_positions: List[Position], turns_ahead) -> Position:
+    # turns_ahead is How many turns we are simulating
     best_direction = None
     max_score = -float('inf')  # Use a scoring system instead of just safe distance
-    turns_ahead = 3  # How many turns ahead we are checking
 
     # Check in all directions
     for angle in range(0, 360, 10):  # Increment by 10 degrees for efficiency, can be adjusted
@@ -214,9 +222,18 @@ def find_safe_direction(drone_position: Position, bots_positions: List[Position]
 
 
 def move_drone(drone_position: Position, bots_positions: List[Position]) -> Position:
+    target_vector = (TARGET_POSITION[0] - drone_position[0], TARGET_POSITION[1] - drone_position[1])  
+    distance_to_target = math.sqrt(target_vector[0]**2 + target_vector[1]**2)  
+    if distance_to_target < DRONE_SPEED:
+        return TARGET_POSITION
+
     # Find a safe direction to move that avoids predicted collisions with bots
-    new_position = find_safe_direction(drone_position, bots_positions)
-    
+    new_position = find_safe_direction(drone_position, bots_positions, turns_ahead=3)
+    if new_position == drone_position:
+        new_position = find_safe_direction(drone_position, bots_positions, turns_ahead=2)
+        if new_position == drone_position:
+            new_position = find_safe_direction(drone_position, bots_positions, turns_ahead=1)
+
     return new_position
 
 
@@ -229,7 +246,8 @@ def print_board(drone_position: Position, bots_positions: List[Position]) -> Non
     drone_x, drone_y = int(drone_x), int(drone_y)
     drone_x //= GRID_CHAR_WIDTH  
     drone_y //= GRID_CHAR_WIDTH  
-    board[drone_y][drone_x] = 'O'  
+    board[drone_y][drone_x] = 'D'  
+    skull = '\u2620'
       
     # Place the bots on the board  
     for bot_pos in bots_positions:  
@@ -237,8 +255,8 @@ def print_board(drone_position: Position, bots_positions: List[Position]) -> Non
         bot_x, bot_y = int(bot_x), int(bot_y)
         bot_x //= GRID_CHAR_WIDTH  
         bot_y //= GRID_CHAR_WIDTH  
-        if board[bot_y][bot_x] == 'O':  # If the drone is already there, mark overlap with '$'  
-            board[bot_y][bot_x] = '$'  
+        if board[bot_y][bot_x] in ('D', skull):  # If the drone is already there, mark overlap with '$'  
+            board[bot_y][bot_x] = skull
         elif '0' < board[bot_y][bot_x] < '9':  # If the drone is already there, mark overlap with '$'  
             char = board[bot_y][bot_x]
             board[bot_y][bot_x] = chr(ord(char) + 1)
