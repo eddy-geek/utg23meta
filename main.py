@@ -364,7 +364,7 @@ class Drone:
     def get_radar_blips_count(self, *directions: list[str]) -> int:
         return sum([len(self.get_radar_blips(direction)) for direction in directions])
 
-    def get_radar_blips_unscanned_fish_count(self, *directions: list[str]) -> int:
+    def get_radar_blips_unscanned_fish(self, *directions: list[str]) -> list[RadarBlip]:
         global scan_list
         unscanned_fish_blips = []
         for direction in directions:
@@ -372,7 +372,11 @@ class Drone:
                 if blip.fish_id not in scan_list and not fish_global_map[blip.fish_id].is_monster:
                     print_debug("%s found unscanned fish %d", self.name(), blip.fish_id)
                     unscanned_fish_blips.append(blip)
-        return len(unscanned_fish_blips)
+        return unscanned_fish_blips
+
+    def get_radar_blips_unscanned_fish_count(self, *directions: list[str]) -> int:
+        return len(self.get_radar_blips_unscanned_fish(*directions))
+
 
 # FishId is type alias int
 FishId = int
@@ -672,9 +676,6 @@ def run_feuille_morte():
     def inner(drone: Drone):
         if loop == 0:
             init(drone)
-
-        # Tag all fish already scanned by any drone
-
 
         #===========================
         #     State check
