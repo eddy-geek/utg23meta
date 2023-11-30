@@ -470,6 +470,22 @@ def order_wait(light: int):
 def print_debug(message, *a):
     print("#%d| %s" %(loop + 1, message % a) if a else message, flush= True, file= sys.stderr)
 
+def print_blips(blips: list[RadarBlip]):
+    printed_str = {
+        "TL": [],
+        "TR": [],
+        "BL": [],
+        "BR": [],
+    }
+    for blip in blips:
+        printed_str[blip.dir].append(str(blip.fish_id))
+
+    print_debug(printed_str)
+    print_debug(len(printed_str["TL"]), "|", len(printed_str["TR"]))
+    print_debug(7 * "-")
+    print_debug(len(printed_str["BL"]), "|", len(printed_str["BR"]))
+
+
 def dist(a: Vector, b: Vector):
     return int(math.dist(a, b))
 
@@ -655,7 +671,7 @@ while True:
         fish_id = int(fish_id)
         my_radar_blips[drone_id].append(RadarBlip(fish_id, dir))
 
-    print_debug("my_radar_blips %s", my_radar_blips)
+    # print_debug("my_radar_blips %s", my_radar_blips)
     # call once
     update_positions(my_drones, visible_fish)
 
