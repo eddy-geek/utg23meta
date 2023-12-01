@@ -388,7 +388,9 @@ class Drone:
         unscanned_fish_blips = []
         for direction in directions:
             for blip in self.get_radar_blips(direction):
-                if blip.fish_id not in scan_list and not fish_global_map[blip.fish_id].is_monster:
+                if blip.fish_id not in scan_list \
+                        and blip.fish_id in fish_global_map \
+                        and not fish_global_map[blip.fish_id].is_monster:
                     print_debug("%s found unscanned fish %d", self.name(), blip.fish_id)
                     unscanned_fish_blips.append(blip)
         return unscanned_fish_blips
