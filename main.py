@@ -327,22 +327,27 @@ class Drone:
     # (2) 0 <> 1000: flee!!!
 
     def evade_all_monsters(self):
+        # FIXME ed
         # 0. Detect all monsters
         close_monsters = self.detect_close_monsters()
         if close_monsters:
             print_debug("%s detected %d monsters %s", self.name(), len(close_monsters), close_monsters)
-            #===========================
-            #     1. Evade only one monster
-            #===========================
-            # if dist(self.pos, fish.pos) < 700:
-            #     flee(monster)
-            # closest = min(close_monsters, key=lambda fish: dist(self.pos, fish.predicted_pos))  # type:ignore (optional)
-            # self.evade_monster(closest)
-            #===========================
-            #     2. Evade all monsters
-            #===========================
-            monster_position_vectors = [monster.predicted_pos for monster in close_monsters if monster.predicted_pos]  # type:ignore (optional)
-            move_drone_safely(self.pos, monster_position_vectors, self.target)
+            if len(close_monsters) == 1:
+                monster = close_monsters[0]
+                if dist(self.pos, monster.predicted_pos) < 700:
+                    flee(self, monster)
+                    self.context["evading_for_turns"] = 4
+                    # action = "flee"
+                else:
+                    # closest = min(close_monsters, key=lambda fish: dist(self.pos, fish.predicted_pos))  # type:ignore (optional)
+                    self.evade_monster(monster)
+                    self.context["evading_for_turns"] = 2
+                    # action = "evade1"
+            else:
+                monster_position_vectors = [monster.predicted_pos for monster in close_monsters if monster.predicted_pos]  # type:ignore (optional)
+                move_drone_safely(self.pos, monster_position_vectors, self.target)
+                self.context["evading_for_turns"] = 3
+                # action = "evade_many"
 
     def evade_monster(self, monster: FishGlobalState):
         # Turn off lights to start evading
@@ -381,6 +386,16 @@ class Drone:
                     print_debug("%s found unscanned fish %d", self.name(), blip.fish_id)
                     unscanned_fish_blips.append(blip)
         return unscanned_fish_blips
+
+    def get_radar_blips_monsters(self, *directions: str) -> list[RadarBlip]:
+        global scan_list
+        monsters_blips = []
+        for direction in directions:
+            for blip in self.get_radar_blips(direction):
+                if blip.fish_id and fish_global_map[blip.fish_id].is_monster:
+                    print_debug("%s found monster %d", self.name(), blip.fish_id)
+                    monsters_blips.append(blip)
+        return monsters_blips
 
     def get_radar_blips_unscanned_fish_count(self, *directions: str) -> int:
         return len(self.get_radar_blips_unscanned_fish(*directions))
@@ -533,7 +548,7 @@ def update_positions(drones, visible_fish):
     
     print_debug("FishGlobalMap %s", fish_global_map)
 
-def flee(drone, monster, strategic_target):
+def flee(drone, monster):
     vector_to_monster = monster.pos - drone.pos
     direction = (-vector_to_monster).normalize()
     return target_from_direction(drone.pos, direction)
@@ -925,6 +940,56 @@ Right bot:
   - rise: x=L
 """
 #===================================================================================================
+def run_feuille_morte_v2(directions=[RADAR_TOP_LEFT, RADAR_BOTTOM_RIGHT]):
+    def init(drone: Drone):
+      drone.context["side"] = SinkerSide.LEFT if drone.pos.x < 5000 else SinkerSide.RIGHT
+      drone.context["state"] = SinkerState.SINKING
+
+    def inner(drone: Drone):
+        if loop == 0:
+            init(drone)
+
+        #===========================
+        #     State check
+        #===========================
+        # Drone is at the bottom of the map, need to go to the middle
+        if drone.pos.y >= 8000 and drone.context["state"] == SinkerState.SINKING:
+            drone.context["state"] = SinkerState.CROSSING
+        # Drone is at the middle of the map, need to go to the top
+        elif 3750 <= drone.pos.x <= 6250 and drone.context["state"] == SinkerState.CROSSING:
+            drone.context["state"] = SinkerState.RISING
+
+        #===========================
+        #     State resolution
+        #===========================
+        if(drone.context["state"] == SinkerState.SINKING):
+            # Scan for fishes above/below
+            drone.refresh_radar(my_radar_blips[drone.drone_id])
+            # If there is a fish above, go to the specific location
+            
+            fishes_left = drone.get_radar_blips_unscanned_fish_count(directions[0])
+            fishes_right = drone.get_radar_blips_unscanned_fish_count(directions[1])
+
+            if(fishes_left and fishes_right):
+                
+            if
+
+            if drone.get_radar_blips_unscanned_fish_count(directions[0]):  #? Can be improved by giving a drone a preference on a side to go first
+              print_debug("%s found fish above/below left", drone.drone_id)
+              drone.target = Vector(1500 if drone.context["side"] == SinkerSide.LEFT else 6500, 10000)
+            elif drone.get_radar_blips_unscanned_fish_count(directions[1]):
+              print_debug("%s found fish above/below right", drone.drone_id)
+              drone.target = Vector(3500 if drone.context["side"] == SinkerSide.LEFT else 8500, 10000)
+            else:
+              # Nothing detected, go to the middle
+              drone.target = Vector(2500 if drone.context["side"] == SinkerSide.LEFT else 7500, 10000)
+        elif(drone.context["state"] == SinkerState.CROSSING):
+            drone.target = Vector(3500 if drone.context["side"] == SinkerSide.LEFT else 6500, 7000)
+        elif(drone.context["state"] == SinkerState.RISING):
+            drone.target = Vector(3500 if drone.context["side"] == SinkerSide.LEFT else 6500, 0)
+    return inner
+
+
 def run_feuille_morte():
     def init(drone: Drone):
       drone.context["side"] = SinkerSide.LEFT if drone.pos.x < 5000 else SinkerSide.RIGHT
@@ -1044,11 +1109,13 @@ class Score:
         return score
 
     @staticmethod
-    def estimated_score_with_bonus(drones: list[Drone], other_score: list[int]):
+    def estimated_score_with_bonus(drones: list[Drone], other_drones: list[Drone]):
         score = 0
 
         for drone in drones:
             score += Score.estimated_drone_save(drone)
+        for drone in other_drones:
+            Score.estimated_drone_save(drone)
         fish_types = {
             0: [],
             1: [],
@@ -1060,6 +1127,7 @@ class Score:
             2: [],
             3: [],
         }
+
         drone_ids = [drone.drone_id for drone in drones]
         for id in drone_ids:
             for x in range(3):
@@ -1067,6 +1135,18 @@ class Score:
                 score += len(fish_types[x]) * (x + 1)
             for x in range(4):
                 fish_colors[x] += Score.drone_score_details[id]["fish_colors"][x]
+
+        other_drone_ids = [drone.drone_id for drone in other_drones]
+        for id in other_drone_ids:
+            for x in range(3):
+                other_fish_types = Score.drone_score_details[id]["fish_types"][x]
+                for fish in other_fish_types:
+                    if fish in fish_types[x]:
+                        fish_types[x].remove(fish)
+                fish_types[x] += Score.drone_score_details[id]["fish_types"][x]
+            for x in range(4):
+                fish_colors[x] += Score.drone_score_details[id]["fish_colors"][x]
+                for fish i
 
         for f_type in fish_types.values():
             if len(f_type) == 3:
