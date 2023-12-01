@@ -1030,7 +1030,7 @@ def run_feuille_morte_v2(directions=[RADAR_BOTTOM_LEFT, RADAR_BOTTOM_RIGHT], y_d
                 drone.target = Vector(right_new_target, target_y)
             # If nothing detected, go to the middle
             else:
-              drone.target = Vector(2500 if drone.context["side"] == SinkerSide.LEFT else 7500, target_y)
+              drone.target = Vector(1500 if drone.context["side"] == SinkerSide.LEFT else 8500, target_y)
             # if drone.get_radar_blips_unscanned_fish_count(directions[0]):  #? Can be improved by giving a drone a preference on a side to go first
             #   print_debug("%s found fish above/below left", drone.drone_id)
             #   drone.target = Vector(1500 if drone.context["side"] == SinkerSide.LEFT else 6500, 10000)
@@ -1041,7 +1041,7 @@ def run_feuille_morte_v2(directions=[RADAR_BOTTOM_LEFT, RADAR_BOTTOM_RIGHT], y_d
               # Nothing detected, go to the middle
             #   drone.target = Vector(2500 if drone.context["side"] == SinkerSide.LEFT else 7500, 10000)
         elif(drone.state == StrategyState.CROSSING):
-            drone.target = Vector((2500 if loop < 50 else 3500) if drone.context["side"] == SinkerSide.LEFT else (6500 if loop < 50 else 8500), 7500 if loop < 50 else 8500)
+            drone.target = Vector(2500 if drone.context["side"] == SinkerSide.LEFT else 6500, 7500 if loop < 50 else 8500)
         elif(drone.state == StrategyState.RISING):
             # drone.target = Vector(3500 if drone.context["side"] == SinkerSide.LEFT else 6500, 0)
             # Scan for fishes above/below
