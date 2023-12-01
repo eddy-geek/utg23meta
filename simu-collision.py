@@ -339,5 +339,5 @@ def make_stats(nruns=100):
     print(succ * 100 / nruns, '% of success')
 
 
-#main_loop()
-make_stats(600)
+main_loop()
+# make_stats(600)
