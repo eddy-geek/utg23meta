@@ -60,7 +60,7 @@ import sys
 import math
 from enum import Enum
 
-DEBUG_ENABLED = False
+DEBUG_ENABLED = True
 
 # Map dimensions  
 MAP_SIZE = 10000  # units (u)  
@@ -366,7 +366,8 @@ class Drone:
 
     def __str__(self):
         return f"""{self.name()} pos={self.pos} {"DEAD!" if self.dead else ""} batt={self.battery}
-        scans#{len(self.scans)} target={self.target} {self.waiting} {self.is_light_enabled} context={self.context}"""
+        scans#{len(self.scans)} target={self.target} {self.waiting} {self.is_light_enabled}
+        {''.join(self.context.keys())} ENDDRONE""" #context={self.context}
 
     __repr__ = __str__
 
@@ -416,22 +417,23 @@ class Drone:
         # -- rising : every 6 turns low / 7 turns middle / 8 turns high
         low_batt = self.battery < BATTERY_CAPACITY / 30  # 10
         adjust = 1 if low_batt else 0
+        r = False # eg if zone == Zone.SURFACE:
         if is_drone_sinking or is_drone_crossing:
             if zone == Zone.HIGH:
-                return turns_off >= adjust + 5
-            if zone == Zone.MID:
-                return turns_off >= adjust + 3 
-            if zone == Zone.LOW:
-                return turns_off >= adjust + 1
-        if is_drone_rising:
+                r = turns_off >= adjust + 5
+            elif zone == Zone.MID:
+                r = turns_off >= adjust + 3 
+            elif zone == Zone.LOW:
+                r = turns_off >= adjust + 1
+        elif is_drone_rising:
             if zone == Zone.HIGH:
-                return turns_off >= adjust + 7
-            if zone == Zone.MID:
-                return turns_off >= adjust + 6
-            if zone == Zone.LOW:
-                return turns_off >= adjust + 5
-        # eg if zone == Zone.SURFACE:
-        return False
+                r = turns_off >= adjust + 7
+            elif zone == Zone.MID:
+                r = turns_off >= adjust + 6
+            elif zone == Zone.LOW:
+                r = turns_off >= adjust + 5
+        print_debug("%s: enable_light: %s z=%s b=%s +%s (was off %d turns)", self.name(), r, zone, low_batt, adjust, turns_off)
+        return r
 
     def get_outpaceable_foes(self, foes: list["Drone"]):
         below_foe_drones = [foe for foe in foes if not foe.dead \
@@ -554,9 +556,7 @@ def update_positions(drones, visible_fish):
             s += "| %s=%s %s d=%d " % ("M" if o.is_monster else "F", o.fish_id,
                                  "chase_since=%d" % o.is_chasing_us__last_loop.get(drone.drone_id, 999) if o.is_monster else "",
                                  o.p_distance[drone],
-                                 )
-        print_debug(s)
-    
+                                 )    
     print_debug("FishGlobalMap %s", fish_global_map)
 
 
@@ -1216,8 +1216,6 @@ class Score:
 
         return score
 
-# TODO TODO light 
-# monster overrides this: force turn off
 
 class Zone(Enum):
     SURFACE = 4  # 0   -3000
@@ -1339,14 +1337,15 @@ while True:
 
     for drone in my_drones:
         if loop == 0:
-            drone.role = DroneRole.SINKER_MID1 if drone.drone_id in FAST_COMPATIBLE_POSITIONS else DroneRole.SINKER_LOW
+            # drone.role = DroneRole.SINKER_MID1 if drone.drone_id in FAST_COMPATIBLE_POSITIONS \
+            #     else DroneRole.SINKER_MID2
+            # drone.role = DroneRole.SINKER_MID1 if drone.drone_id in FAST_COMPATIBLE_POSITIONS else DroneRole.SINKER_LOWe DroneRole.SINKER_LOW
+            drone.role = DroneRole.FEUILLE_MORTE
 
         #===========================
         #     Init each loop
         #===========================
         print_debug("Start %s", drone)
-        # Turn on lights every 5 loops by default
-        # drone.is_light_enabled = drone.pos.y > MINIMUM_LIGHT_DEPTH_THRESHOLD and loop % 5 == 0
 
         #===========================
         #     Loop strategy
@@ -1362,7 +1361,7 @@ while True:
         drone.evasion_orchestrator()
 
 
-        print_debug(drone.get_order_move())
+#         print_debug(drone.get_order_move())
         print(drone.get_order_move())
 
     loop = loop + 1
