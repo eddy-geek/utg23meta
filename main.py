@@ -412,10 +412,10 @@ class Drone:
         # eg if zone == Zone.SURFACE:
         return False
 
-    def can_outpace_foe(self, foes: list["Drone"]):
+    def get_outpaceable_foes(self, foes: list["Drone"]):
         below_foe_drones = [foe for foe in foes if not foe.dead \
                                 and foe.pos.y - self.pos.y > RUSH_DISTANCE_WITH_FOE]
-        return len(below_foe_drones) >= 1
+        return below_foe_drones
 
     def get_monsters_above(self):
         blocking_monsters = [monster for monster in self.detect_close_monsters(999, 5) \
@@ -453,8 +453,15 @@ class Drone:
 
         # TODO: Centralize strategy changes here (ie the MID1>MID2>LOW could take the feuillemorte role)
         # (only if we keep those strategies)
-        
-        if(self.is_score_enough_to_rush() and (self.can_outpace_foe(foes) or )):
+        if not self.are_monsters_blocking_arise():
+            outpaceable_foes = self.get_outpaceable_foes(foes)
+            close_monsters = self.detect_close_monsters()
+            if self.is_score_enough_to_rush() and len(outpaceable_foes) >= 1:
+                self.role = DroneRole.RUSH_TOP
+                print_debug("%s: RUSH_TOP: predicted score being %d and foes %s are outpaceable", self.name())
+            if self.is_score_enough_to_rush() and self.detect_close_monsters():
+                self.role = DroneRole.RUSH_TOP
+                print_debug("%s: RUSH_TOP: predicted score being %d and %d monsters are close, self.name())
 
             
 
@@ -680,8 +687,6 @@ def move_bots(bots_positions: List[Vector], drone_position: Vector, speed: int) 
     return new_positions
 
 
-
-
 # Function to check for collision
 def check_collision(drone_position: Vector, bots_positions: List[Vector]) -> bool:  
     for bot_position in bots_positions:
@@ -689,7 +694,6 @@ def check_collision(drone_position: Vector, bots_positions: List[Vector]) -> boo
         if distance <= MONSTER_INTERACTION_RADIUS:
             return True  # Collision detected
     return False  # No collision
-
 
 
 # Helper function to move towards a direction by a certain speed
@@ -1032,10 +1036,11 @@ class Score:
         return score
 
     @staticmethod
-    def estimated_score_with_bonus(drones: list[Drone]):
+    def estimated_score_with_bonus(drones: list[Drone], other_score: list[int]):
         score = 0
+
         for drone in drones:
-            score += Score.estimated_drone_save(drone)             score += Score.estimated_drone_save(drone)r
+            score += Score.estimated_drone_save(drone)
         fish_types = {
             0: [],
             1: [],
@@ -1045,13 +1050,16 @@ class Score:
             0: [],
             1: [],
             2: [],
-         
-        e_ids = [drone.drone_id for drone in drones]
-        # 0
+            
+        }
+        drone_ids = [drone.drone_id for drone in drones]
+        for id in drone_ids:
+            for x in range(3):
+                fish_types[x] += Score.drone_score_details[id]["fish_types"][x]
+            for x in range(4):
+                fish_colors[x] += Score.drone_score_details[id]["fish_colors"][x]
 
-
-# TODO if number of points > (3 fish, some bonus) & enemy drone < 1200 below then activate rush: go to surface.
-# TODO light 
+# TODO TODO light 
 # monster overrides this: force turn off
 
 class Zone(Enum):
