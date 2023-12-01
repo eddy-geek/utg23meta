@@ -464,7 +464,7 @@ class Drone:
                     self.name(),
                     Score.estimated_drone_save(self), #type:ignore (optional)
                     outpaceable_foes)
-            if self.is_score_enough_to_rush() and sel):
+            if self.is_score_enough_to_rush() and self:
                 self.role = DroneRole.RUSH_TOP
                 print_debug("%s: RUSH_TOP: predicted score being %d and monsters %s are close",
                             self.name(), 
