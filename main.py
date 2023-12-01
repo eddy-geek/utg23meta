@@ -224,7 +224,7 @@ class FishGlobalState:
     detail : FishDetail
     is_monster : int
     last_seen_loop : Optional[int]
-    predicted_pos : Optional[Vector]
+    predicted_pos : Vector
     last_seen_speed : Optional[Vector]
     is_chasing_us__last_loop : Dict[int, int]
     p_distance: Dict[int, int]
@@ -234,7 +234,7 @@ class FishGlobalState:
         self.detail = detail
         self.is_monster = detail.type == CREATURE_TYPE_MONSTER
         self.last_seen_loop = 0
-        self.predicted_pos = None
+        self.predicted_pos = Vector(-1, -1)
         self.last_seen_speed = None
         self.is_chasing_us__last_loop = {}
         self.p_distance = {}
@@ -425,22 +425,22 @@ class Drone:
         return blocking_monsters
 
     
-    def get_monsters_in_angle(self):
+    def are_monsters_in_angle(self):
         going_up_position = find_safe_direction(
             drone_position=self.pos,
             bots_positions=[monster.predicted_pos for monster in self.detect_close_monsters()],
             target_position=(self.pos.x, DRONE_SURFACE_Y_THRESHOLD),
             turns_ahead=3,
-            min_angle=-45, max_angle=55, step_angle=10)
-        if (going_up_position != self.pos):
-            #found a way to go up
-            pass
+            min_angle=-45,
+            max_angle=55,
+            step_angle=10)
+        return going_up_position != self.pos
 
     def are_monsters_blocking_arise(self):
         if self.pos.y < 5000:
             return len(self.get_monsters_above()) >= 1
         else:
-            return get_monsters_in_angle
+            return self.are_monsters_in_angle()
         
 
     def is_score_enough_to_rush(self):
@@ -1036,8 +1036,17 @@ class Score:
         score = 0
         for drone in drones:
             score += Score.estimated_drone_save(drone)             score += Score.estimated_drone_save(drone)r
-        for drone_id in drone_ids:
-            score += Score.estimated_score_with_bonus_for_drone(drone_id, drone_ids)one_ids = [drone.drone_id for drone in drones]
+        fish_types = {
+            0: [],
+            1: [],
+            2: [],
+        }
+        fish_colors = {
+            0: [],
+            1: [],
+            2: [],
+         
+        e_ids = [drone.drone_id for drone in drones]
         # 0
 
 
