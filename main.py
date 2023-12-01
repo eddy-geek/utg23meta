@@ -326,28 +326,28 @@ class Drone:
     # choose betweeen norm and -norm based on target
     # (2) 0 <> 1000: flee!!!
 
-    def evade_all_monsters(self):
-        # FIXME ed
-        # 0. Detect all monsters
+    def evasion_orchestrator(self):
+        # TODO handling of lights to be maggressive if bot has not seen us (+300)
         close_monsters = self.detect_close_monsters()
         if close_monsters:
             print_debug("%s detected %d monsters %s", self.name(), len(close_monsters), close_monsters)
             if len(close_monsters) == 1:
                 monster = close_monsters[0]
                 if dist(self.pos, monster.predicted_pos) < 700:
-                    flee(self, monster)
+                    self.flee(monster)
                     self.context["evading_for_turns"] = 4
-                    # action = "flee"
+                    action = "flee"
                 else:
                     # closest = min(close_monsters, key=lambda fish: dist(self.pos, fish.predicted_pos))  # type:ignore (optional)
                     self.evade_monster(monster)
                     self.context["evading_for_turns"] = 2
-                    # action = "evade1"
+                    action = "evade1"
             else:
                 monster_position_vectors = [monster.predicted_pos for monster in close_monsters if monster.predicted_pos]  # type:ignore (optional)
                 move_drone_safely(self.pos, monster_position_vectors, self.target)
                 self.context["evading_for_turns"] = 3
-                # action = "evade_many"
+                action = "evade_many"
+            print_debug("%s: %s !!!", self.name(), action)
 
     def evade_monster(self, monster: FishGlobalState):
         # Turn off lights to start evading
@@ -355,6 +355,11 @@ class Drone:
 
         # Set the evade target to move during the current loop
         self.target = choose_best_way_around_to_target(self, monster, self.target)
+
+    def flee(self, monster):
+        vector_to_monster = monster.pos - self.pos
+        direction = (-vector_to_monster).normalize()
+        return target_from_direction(self.pos, direction)
 
     def name(self):
         return f"{self.role.name if self.role else 'ø'}-{self.drone_id}"
@@ -547,11 +552,6 @@ def update_positions(drones, visible_fish):
         print_debug(s)
     
     print_debug("FishGlobalMap %s", fish_global_map)
-
-def flee(drone, monster):
-    vector_to_monster = monster.pos - drone.pos
-    direction = (-vector_to_monster).normalize()
-    return target_from_direction(drone.pos, direction)
 
 
 def target_from_direction(pos, direction):
@@ -970,19 +970,30 @@ def run_feuille_morte_v2(directions=[RADAR_TOP_LEFT, RADAR_BOTTOM_RIGHT]):
             fishes_left = drone.get_radar_blips_unscanned_fish_count(directions[0])
             fishes_right = drone.get_radar_blips_unscanned_fish_count(directions[1])
 
-            if(fishes_left and fishes_right):
-                
-            if
-
-            if drone.get_radar_blips_unscanned_fish_count(directions[0]):  #? Can be improved by giving a drone a preference on a side to go first
-              print_debug("%s found fish above/below left", drone.drone_id)
-              drone.target = Vector(1500 if drone.context["side"] == SinkerSide.LEFT else 6500, 10000)
-            elif drone.get_radar_blips_unscanned_fish_count(directions[1]):
-              print_debug("%s found fish above/below right", drone.drone_id)
-              drone.target = Vector(3500 if drone.context["side"] == SinkerSide.LEFT else 8500, 10000)
+            # If both sides have fishes, go to the side of the drone
+            if fishes_left and fishes_right:
+                if drone.context["side"] == SinkerSide.LEFT or drone.get_radar_blips_monsters():
+                    drone.target = Vector(1500 if drone.context["side"] == SinkerSide.LEFT else 6500, 10000)
+                else:
+                    drone.target = Vector(3500 if drone.context["side"] == SinkerSide.LEFT else 8500, 10000)
+            # If only left
+            elif fishes_left:
+                drone.target = Vector(1500 if drone.context["side"] == SinkerSide.LEFT else 6500, 10000)
+            # If only right
+            elif fishes_right:
+                drone.target = Vector(3500 if drone.context["side"] == SinkerSide.LEFT else 8500, 10000)
+            # If nothing detected, go to the middle
             else:
-              # Nothing detected, go to the middle
               drone.target = Vector(2500 if drone.context["side"] == SinkerSide.LEFT else 7500, 10000)
+            # if drone.get_radar_blips_unscanned_fish_count(directions[0]):  #? Can be improved by giving a drone a preference on a side to go first
+            #   print_debug("%s found fish above/below left", drone.drone_id)
+            #   drone.target = Vector(1500 if drone.context["side"] == SinkerSide.LEFT else 6500, 10000)
+            # elif drone.get_radar_blips_unscanned_fish_count(directions[1]):
+            #   print_debug("%s found fish above/below right", drone.drone_id)
+            #   drone.target = Vector(3500 if drone.context["side"] == SinkerSide.LEFT else 8500, 10000)
+            # else:
+              # Nothing detected, go to the middle
+            #   drone.target = Vector(2500 if drone.context["side"] == SinkerSide.LEFT else 7500, 10000)
         elif(drone.context["state"] == SinkerState.CROSSING):
             drone.target = Vector(3500 if drone.context["side"] == SinkerSide.LEFT else 6500, 7000)
         elif(drone.context["state"] == SinkerState.RISING):
@@ -1141,12 +1152,15 @@ class Score:
             for x in range(3):
                 other_fish_types = Score.drone_score_details[id]["fish_types"][x]
                 for fish in other_fish_types:
-                    if fish in fish_types[x]:
-                        fish_types[x].remove(fish)
+                    if fish not in fish_types[x]:
+                        score += x + 1  # bonus for being the first to save
                 fish_types[x] += Score.drone_score_details[id]["fish_types"][x]
             for x in range(4):
                 fish_colors[x] += Score.drone_score_details[id]["fish_colors"][x]
-                for fish i
+                for fish in Score.drone_score_details[id]["fish_colors"][x]:
+                    if fish in fish_colors[x]:
+                        # fish_colors[x].remove(fish)
+                        pass
 
         for f_type in fish_types.values():
             if len(f_type) == 3:
@@ -1298,7 +1312,7 @@ while True:
 
         # Detect any monsters
         # In case a monster is detected, evade it !
-        drone.evade_all_monsters()
+        drone.evasion_orchestrator()
 
 
         print(drone.get_order_move())
