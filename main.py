@@ -313,7 +313,7 @@ class Drone:
         return f"MOVE {clamp(round(self.target.x))} {clamp(round(self.target.y))} {str_light}"
 
     def detect_close_monsters(self, max_dist=MONSTER_MAX_DETECTION_RADIUS, turns_since_seen=5):
-        global loop        return [fs for fs in fish_global_map.values() \
+        global loop                return [fs for fs in fish_global_map.values() \
                 if fs.is_monster \
                     and fs.predicted_pos \
                     and dist(self.pos, fs.predicted_pos) < max_dist \
@@ -427,11 +427,10 @@ class Drone:
     
     def get_monsters_in_angle(self):
         going_up_position = find_safe_direction(
-            drone_position=self.pos, bots_positions=[monster for monster in fish_global_map.values() \
-            if monster.is_monster\
-            and loop - monster.is_chasing_us__last_loop < MAX_TURNS\
-        ],
-            target_position=(self.pos.x, SURFACE_Y), turns_ahead=3,
+            drone_position=self.pos,
+            bots_positions=[monster.predicted_pos for monster in self.detect_close_monsters()],
+            target_position=(self.pos.x, DRONE_SURFACE_Y_THRESHOLD),
+            turns_ahead=3,
             min_angle=-45, max_angle=55, step_angle=10)
         if (going_up_position != self.pos):
             #found a way to go up
@@ -1033,12 +1032,13 @@ class Score:
         return score
 
     @staticmethod
-    def estimated_score_with_bonus(drones: list[Drone] -> int:
-
-        score = 0        for drone in drones:
-            for
-        retuscore += estimated_drone_save(drone)
-        drone_ids = [drone.drone_id for drone in drones]0
+    def estimated_score_with_bonus(drones: list[Drone]):
+        score = 0
+        for drone in drones:
+            score += Score.estimated_drone_save(drone)             score += Score.estimated_drone_save(drone)r
+        for drone_id in drone_ids:
+            score += Score.estimated_score_with_bonus_for_drone(drone_id, drone_ids)one_ids = [drone.drone_id for drone in drones]
+        # 0
 
 
 # TODO if number of points > (3 fish, some bonus) & enemy drone < 1200 below then activate rush: go to surface.
