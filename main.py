@@ -365,9 +365,9 @@ class Drone:
         return f"{self.role.name if self.role else 'ø'}-{self.drone_id}"
 
     def __str__(self):
-        return f"""{self.name()} pos={self.pos} {"DEAD!" if self.dead else ""} batt={self.battery}
-        scans#{len(self.scans)} target={self.target} {self.waiting} {self.is_light_enabled}
-        {''.join(self.context.keys())} ENDDRONE""" #context={self.context}
+        return f'{self.name()} pos={self.pos.x},{self.pos.y} {"DEAD!" if self.dead else ""} batt={self.battery}'\
+            f' captures={Score.estimated_drone_save(self)} scans#{len(self.scans)} target={self.target} {self.waiting} {self.is_light_enabled}'\
+            f' {",".join(self.context.keys())}' #context={self.context}
 
     __repr__ = __str__
 
@@ -481,7 +481,7 @@ class Drone:
 
         # TODO: Centralize strategy changes here (ie the MID1>MID2>LOW could take the feuillemorte role)
         # (only if we keep those strategies)
-        if not self.are_monsters_blocking_arise():
+        if not self.are_monsters_blocking_arise() and drone.role != DroneRole.RUSH_TOP:
             outpaceable_foes = self.get_outpaceable_foes(foes)
             close_monsters = self.detect_close_monsters()
             
@@ -1284,6 +1284,7 @@ while True:
             drone_by_id[drone_id].pos = pos
             drone_by_id[drone_id].dead = dead == '1'
             drone_by_id[drone_id].battery = battery
+            # drone_by_id[drone_id].scans = my_scans
         my_radar_blips[drone_id] = []
 
     foe_drone_count = int(input())
@@ -1299,12 +1300,14 @@ while True:
             drone_by_id[drone_id].pos = pos
             drone_by_id[drone_id].dead = dead == '1'
             drone_by_id[drone_id].battery = battery
+            # drone_by_id[drone_id].scans = foe_scans
 
 
     drone_scan_count = int(input())
     for _ in range(drone_scan_count):
         drone_id, fish_id = map(int, input().split())
-        drone_by_id[drone_id].scans.append(fish_id)
+        if fish_id not in drone_by_id[drone_id].scans:
+            drone_by_id[drone_id].scans.append(fish_id)
 
     visible_fish_count = int(input())
     for _ in range(visible_fish_count):
@@ -1332,6 +1335,7 @@ while True:
                 scan_list.append(scan)
         return scan_list
 
+    print_debug(f'my_scan_count {my_scan_count}, drone_scan_count {drone_scan_count} ')
     # print_debug("my_radar_blips %s", my_radar_blips)
     # call once
     update_positions(my_drones, visible_fish)
