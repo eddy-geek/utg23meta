@@ -594,7 +594,7 @@ def move_bots(bots_positions: List[Vector], drone_position: Vector, speed: int) 
         else:
             move_x = (dx / distance) * speed
             move_y = (dy / distance) * speed
-            new_position = (int(bot_position[0] + move_x), int(bot_position[1] + move_y))
+            new_position = Vector(int(bot_position[0] + move_x), int(bot_position[1] + move_y))
             new_positions.append(new_position)
     
     return new_positions
@@ -625,7 +625,7 @@ def predict_bots_movement(bots_positions: List[Vector], drone_position: Vector, 
 
 # Helper function to move towards a direction by a certain speed
 def move_towards(current_position: Vector, move: Vector) -> Vector:
-    new_position = (current_position[0] + move[0], current_position[1] + move[1])
+    new_position = Vector(current_position[0] + move[0], current_position[1] + move[1])
     # Ensure the new position does not exceed the board size
     new_position = Vector(max(0, min(MAP_SIZE-1, new_position[0])), max(0, min(MAP_SIZE-1, new_position[1])))
     return new_position
@@ -655,6 +655,7 @@ def find_safe_direction(drone_position: Vector, bots_positions: List[Vector], ta
                 break
 
             # Simulate bots' movements
+            # FIXME : use MONSTER_AGGRESSIVE_SPEED on turn 1  if detected ; then MONSTER_NON_AGGRESSIVE_SPEED
             temp_bots_positions = move_bots(temp_bots_positions, temp_drone_position, MONSTER_AGGRESSIVE_SPEED)
 
             # Check for collision after bots' movements
@@ -664,12 +665,16 @@ def find_safe_direction(drone_position: Vector, bots_positions: List[Vector], ta
 
         # Calculate the score at the end of the simulation
         if safe_for_all_turns:
+            # further from 1000, malus is 0 ; in a corner, malus is 2000:
+            wall1_malus = lambda dist: 1000 - min(dist, 1000)
+            wall_malus = wall1_malus(temp_drone_position[0]) + wall1_malus(temp_drone_position[1]) \
+                + wall1_malus(MAP_SIZE - temp_drone_position[0]) + wall1_malus(MAP_SIZE - temp_drone_position[1])
             # Calculate the safety distance
             safety_distance = min(math.hypot(bot[0] - temp_drone_position[0], bot[1] - temp_drone_position[1]) for bot in temp_bots_positions)
             # Calculate the distance to the target
             distance_to_target = math.hypot(target_position[0] - temp_drone_position[0], target_position[1] - temp_drone_position[1])
             # We want to maximize safe distance and minimize distance to target
-            score = math.log(safety_distance) - distance_to_target
+            score = math.log(safety_distance) - distance_to_target - wall_malus
             if score > max_score:
                 best_direction = Vector(int(drone_move[0]), int(drone_move[1]))
                 max_score = score
@@ -688,7 +693,7 @@ def find_safe_direction(drone_position: Vector, bots_positions: List[Vector], ta
 
 
 def move_drone_safely(drone_position: Vector, bots_positions: List[Vector], target_position) -> Vector:
-    target_vector = (target_position[0] - drone_position[0], target_position[1] - drone_position[1])  
+    target_vector = Vector(target_position[0] - drone_position[0], target_position[1] - drone_position[1])  
     distance_to_target = math.sqrt(target_vector[0]**2 + target_vector[1]**2)  
     if distance_to_target < DRONE_MOVE_SPEED:
         return target_position
