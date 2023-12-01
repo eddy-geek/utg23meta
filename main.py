@@ -348,6 +348,8 @@ class Drone:
                 self.context["evading_for_turns"] = 3
                 action = "evade_many"
             print_debug("%s: %s !!!", self.name(), action)
+        else:
+            print_debug("%s: no monster to evade", self.name())
 
     def evade_monster(self, monster: FishGlobalState):
         # Turn off lights to start evading
@@ -357,7 +359,7 @@ class Drone:
         self.target = choose_best_way_around_to_target(self, monster, self.target)
 
     def flee(self, monster):
-        vector_to_monster = monster.pos - self.pos
+        vector_to_monster = monster.predicted_pos - self.pos
         direction = (-vector_to_monster).normalize()
         return target_from_direction(self.pos, direction)
 
@@ -559,7 +561,7 @@ def update_positions(drones, visible_fish):
                                  "chase_since=%d" % o.is_chasing_us__last_loop.get(drone.drone_id, 999) if o.is_monster else "",
                                  o.p_distance[drone],
                                  )    
-    print_debug("FishGlobalMap %s", fish_global_map)
+    print_debug("FishGlobalMap n=%s", len(fish_global_map))
 
 
 def target_from_direction(pos, direction):
@@ -859,7 +861,7 @@ def run_fast(drone):
     if drone.pos.x % 800 == 0:
         drone.target = Vector(drone.target.x + 1600, FAST_MAX_DEPTH if drone.target.y < 500 else 499)
 
-Y_SURFACE = 99
+Y_SURFACE = 499
 #===================================================================================================
 #                                          sinker strategy
 #===================================================================================================
@@ -1068,7 +1070,7 @@ strategies = {
     DroneRole.SINKER_MID1: run_sinker(3750, is_full=True),
     DroneRole.SINKER_MID2: run_sinker(6250),
     DroneRole.CHASER: run_chase,
-    DroneRole.FEUILLE_MORTE: run_feuille_morte(),
+    DroneRole.FEUILLE_MORTE: run_feuille_morte_v2(),
     DroneRole.RUSH_TOP: run_rush,
 }
 
@@ -1367,7 +1369,7 @@ while True:
         drone.evasion_orchestrator()
 
 
-#         print_debug(drone.get_order_move())
+        print_debug(drone.get_order_move())
         print(drone.get_order_move())
 
     loop = loop + 1
