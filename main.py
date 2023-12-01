@@ -60,6 +60,7 @@ import sys
 import math
 from enum import Enum
 
+DEBUG_ENABLED = False
 
 # Map dimensions  
 MAP_SIZE = 10000  # units (u)  
@@ -132,7 +133,7 @@ CHASER_DISTANCE_FROM_FOE = 800
 X_LEFT_MARGIN = 1000
 X_RIGHT_MARGIN = 9000
 
-SAFE_SCORING = 3
+RICH_SCORING = 10
 RUSH_DISTANCE_WITH_FOE = 800
 
 # Define the data structures as namedtuples
@@ -253,7 +254,6 @@ class Radar:
     detected: dict[str, list[RadarBlip]]
 
     def __init__(self) -> None:
-        self.drone = drone
         self.detected = {
             RADAR_TOP_LEFT: [],
             RADAR_TOP_RIGHT: [],
@@ -447,9 +447,12 @@ class Drone:
 
     
     def are_monsters_in_angle(self):
+        bots = [monster.predicted_pos for monster in self.detect_close_monsters()]
+        if not bots:
+            return False
         going_up_position = find_safe_direction(
             drone_position=self.pos,
-            bots_positions=[monster.predicted_pos for monster in self.detect_close_monsters()],
+            bots_positions=bots,
             target_position=(self.pos.x, DRONE_SURFACE_Y_THRESHOLD),
             turns_ahead=3,
             min_angle=-45,
@@ -466,7 +469,7 @@ class Drone:
 
     def is_score_enough_to_rush(self):
         potential_score = Score.estimated_drone_save(self)
-        return potential_score >= SAFE_SCORING
+        return potential_score >= RICH_SCORING
 
     def force_strategy_change(self, foes: list["Drone"]):
         # * if trying to outpace foe, rush to top
@@ -490,6 +493,9 @@ class Drone:
                             self.name(), 
                             Score.estimated_drone_save(self), 
                             close_monsters)
+        
+        if self.role == DroneRole.RUSH_TOP and self.pos.y <= 500:
+            self.role = DroneRole.FEUILLE_MORTE
 
             
 
@@ -623,11 +629,8 @@ def choose_best_way_around_to_target(drone: Drone, monster: FishGlobalState, str
         direction: Vector = around_norm2
 
     return target_from_direction(pos, direction)
-#
-# evasion strategy:
-# - activate strategy if there is a monster *detected**:
-#   - turn light down
-#   - avoid detection
+
+
 
 #===========================================================================
 #                            Functions
@@ -639,7 +642,8 @@ def order_wait(light: int):
     print(f"WAIT {1 if light else 0}")
 
 def print_debug(message, *a):
-    print("#%d| %s" %(loop + 1, message % a) if a else message, flush= True, file= sys.stderr)
+    if DEBUG_ENABLED:
+        print("#%d| %s" %(loop + 1, message % a) if a else message, flush= True, file= sys.stderr)
 
 def print_blips(blips: list[RadarBlip]):
     printed_str = {
@@ -729,6 +733,7 @@ def move_towards(current_position: Vector, move: Vector) -> Vector:
 
 def find_safe_direction(drone_position: Vector, bots_positions: List[Vector], target_position,
                         turns_ahead, min_angle=0, max_angle=360, step_angle=10) -> Vector:
+    assert bots_positions
     # turns_ahead is How many turns we are simulating
     best_direction = None
     max_score = -float('inf')  # Use a scoring system instead of just safe distance
@@ -775,7 +780,7 @@ def find_safe_direction(drone_position: Vector, bots_positions: List[Vector], ta
             if score > max_score:
                 best_direction = Vector(int(drone_move[0]), int(drone_move[1]))
                 max_score = score
-                print(f"new best angle {angle}, score {score:.0f} = safety {safety_distance:.0f}|"
+                print_debug(f"new best angle {angle}, score {score:.0f} = safety {safety_distance:.0f}|"
                       f"{math.log(safety_distance):.0f} - distance {distance_to_target:.0f} -> direction {best_direction}")
 
     # If a safe direction was found, return the new position in that direction
@@ -829,7 +834,9 @@ def move_drone_safely(drone_position: Vector, bots_positions: List[Vector], targ
 #                                          Rush strategy
 #===================================================================================================
 def run_rush(drone):
-    drone.target = Vector(drone.pos.x, 499)#===================================================================================================
+    drone.target = Vector(drone.pos.x, 499)
+    
+#===================================================================================================
 #                                          Chase strategy
 #===================================================================================================
 def run_chase(drone):
@@ -954,6 +961,12 @@ def run_feuille_morte_v2(directions=[RADAR_TOP_LEFT, RADAR_BOTTOM_RIGHT]):
         #===========================
         #     State check
         #===========================
+        # If there are many more fishes above than below, change state to rising
+        ABOVE_UNSCANNED_FISH_COEFFICIENT = 1.5
+        if drone.context["state"] == SinkerState.SINKING \
+                and (drone.get_radar_blips_unscanned_fish_count(RADAR_TOP_LEFT, RADAR_TOP_RIGHT) * ABOVE_UNSCANNED_FISH_COEFFICIENT) > drone.get_radar_blips_unscanned_fish_count(RADAR_BOTTOM_LEFT, RADAR_BOTTOM_RIGHT):
+            drone.context["state"] = SinkerState.RISING
+
         # Drone is at the bottom of the map, need to go to the middle
         if drone.pos.y >= 8000 and drone.context["state"] == SinkerState.SINKING:
             drone.context["state"] = SinkerState.CROSSING
@@ -968,7 +981,7 @@ def run_feuille_morte_v2(directions=[RADAR_TOP_LEFT, RADAR_BOTTOM_RIGHT]):
             # Scan for fishes above/below
             drone.refresh_radar(my_radar_blips[drone.drone_id])
             # If there is a fish above, go to the specific location
-            
+
             fishes_left = drone.get_radar_blips_unscanned_fish_count(directions[0])
             fishes_right = drone.get_radar_blips_unscanned_fish_count(directions[1])
 
@@ -1053,7 +1066,7 @@ strategies = {
     DroneRole.SINKER_MID1: run_sinker(3750, is_full=True),
     DroneRole.SINKER_MID2: run_sinker(6250),
     DroneRole.CHASER: run_chase,
-    DroneRole.FEUILLE_MORTE: run_feuille_morte,
+    DroneRole.FEUILLE_MORTE: run_feuille_morte(),
     DroneRole.RUSH_TOP: run_rush,
 }
 
@@ -1349,6 +1362,7 @@ while True:
         drone.evasion_orchestrator()
 
 
+        print_debug(drone.get_order_move())
         print(drone.get_order_move())
 
     loop = loop + 1
