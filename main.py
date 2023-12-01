@@ -458,10 +458,16 @@ class Drone:
             close_monsters = self.detect_close_monsters()
             if self.is_score_enough_to_rush() and len(outpaceable_foes) >= 1:
                 self.role = DroneRole.RUSH_TOP
-                print_debug("%s: RUSH_TOP: predicted score being %d and foes %s are outpaceable", self.name())
+                print_debug("%s: RUSH_TOP: predicted score being %d and foes %s are outpaceable",
+                    self.name(),
+                    Score.estimated_drone_save(self), #type:ignore (optional)
+                    outpaceable_foes)
             if self.is_score_enough_to_rush() and self.detect_close_monsters():
                 self.role = DroneRole.RUSH_TOP
-                print_debug("%s: RUSH_TOP: predicted score being %d and %d monsters are close, self.name())
+                print_debug("%s: RUSH_TOP: predicted score being %d and monsters %s are close",
+                            self.name(), 
+                            Score.estimated_drone_save(self), 
+                            close_monsters)
 
             
 
@@ -1050,14 +1056,22 @@ class Score:
             0: [],
             1: [],
             2: [],
-            
+            3: [],
         }
         drone_ids = [drone.drone_id for drone in drones]
         for id in drone_ids:
             for x in range(3):
                 fish_types[x] += Score.drone_score_details[id]["fish_types"][x]
+                score += len(fish_types[x]) * 
             for x in range(4):
                 fish_colors[x] += Score.drone_score_details[id]["fish_colors"][x]
+
+        for f_type in fish_types.values():
+            if len(f_type) == 3:
+                score += 4
+        for f_color in fish_colors.values():
+            if len(f_color) == 3:
+                score += 3
 
 # TODO TODO light 
 # monster overrides this: force turn off
