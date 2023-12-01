@@ -199,7 +199,8 @@ class DroneRole(Enum):
     FAST = 4
     CHASER = 5
     FEUILLE_MORTE = 6
-    RUSH_TOP = 7
+    FEUILLE_MORTE_TOP = 7
+    RUSH_TOP = 8
 
 SINKER_COMPATIBLE_POSITIONS = (1, 2)
 FAST_COMPATIBLE_POSITIONS = (0, 3)
@@ -330,7 +331,7 @@ class Drone:
     # (2) 0 <> 1000: flee!!!
 
     def evasion_orchestrator(self):
-        # TODO handling of lights to be maggressive if bot has not seen us (+300)
+        # TODO handling of lights to be more aggressive if bot has not seen us (+300)
         close_monsters = self.detect_close_monsters(MONSTER_VICINITY_RADIUS, 5)
         if close_monsters:
             print_debug("%s detected %d monsters %s dist %s chasing_us %s", self.name(), len(close_monsters), close_monsters,
@@ -401,11 +402,13 @@ class Drone:
         return self.radar.get_blips(direction)
 
     def get_radar_blips_unscanned_fish(self, *directions: str) -> list[RadarBlip]:
-        global scan_list
+        # global scan_list
+        global my_scans
         unscanned_fish_blips = []
         for direction in directions:
             for blip in self.get_radar_blips(direction):
-                if blip.fish_id not in scan_list \
+                # if blip.fish_id not in scan_list \
+                if blip.fish_id not in my_scans \
                         and blip.fish_id in fish_global_map \
                         and not fish_global_map[blip.fish_id].is_monster:
                     # print_debug("%s found unscanned fish %d", self.name(), blip.fish_id)
@@ -504,8 +507,6 @@ class Drone:
         # * if trying to outpace foe, rush to top
         # * if "rich" and > 1 monster on the side/below (??), rush to top
 
-        # TODO: Centralize strategy changes here (ie the MID1>MID2>LOW could take the feuillemorte role)
-        # (only if we keep those strategies)
         if not self.are_monsters_blocking_arise() and drone.role != DroneRole.RUSH_TOP:
             outpaceable_foes = self.get_outpaceable_foes(foes)
             close_monsters = self.detect_close_monsters()
@@ -952,7 +953,6 @@ def run_sinker(y_max_depth, is_full=False):
 # Each drone will use the radar to check if there is a fish above
 # When a fish is found, the drone will go the a specific location in the direction of the fish (L or R)
 # Once the fish is no longer detected, the drone will go back to the bottom center of its split
-# TODO do not send left bot to fish on the far right
 """
 |     o     |     o     |
 |     ↓     |           |
@@ -972,14 +972,12 @@ Right bot:
   - rise: x=L
 """
 #===================================================================================================
-def run_feuille_morte_v2(directions=[RADAR_BOTTOM_LEFT, RADAR_BOTTOM_RIGHT]):
+def run_feuille_morte_v2(directions=[RADAR_BOTTOM_LEFT, RADAR_BOTTOM_RIGHT], y_direction = 1):
     def init(drone: Drone):
       drone.context["side"] = SinkerSide.LEFT if drone.pos.x < 5000 else SinkerSide.RIGHT
       drone.state = StrategyState.SINKING
 
     def inner(drone: Drone):
-        target_y = 10000 if directions[0] == RADAR_BOTTOM_LEFT else Y_SURFACE
-
         if loop == 0 or drone.state == StrategyState.INIT:
             init(drone)
 
@@ -990,10 +988,11 @@ def run_feuille_morte_v2(directions=[RADAR_BOTTOM_LEFT, RADAR_BOTTOM_RIGHT]):
         ABOVE_UNSCANNED_FISH_COEFFICIENT = 1.5
         if drone.state == StrategyState.SINKING \
                 and (drone.get_radar_blips_unscanned_fish_count(RADAR_TOP_LEFT, RADAR_TOP_RIGHT) * ABOVE_UNSCANNED_FISH_COEFFICIENT) > drone.get_radar_blips_unscanned_fish_count(RADAR_BOTTOM_LEFT, RADAR_BOTTOM_RIGHT):
+            # drone.set_role(DroneRole.FEUILLE_MORTE_TOP)
             drone.state = StrategyState.RISING
 
         # Drone is at the bottom of the map, need to go to the middle
-        if drone.pos.y >= 8000 and drone.state == StrategyState.SINKING:
+        if drone.pos.y >= 7250 and drone.state == StrategyState.SINKING:
             drone.state = StrategyState.CROSSING
         # Drone is at the middle of the map, need to go to the top
         elif 3250 <= drone.pos.x <= 6750 and drone.state == StrategyState.CROSSING:
@@ -1009,15 +1008,17 @@ def run_feuille_morte_v2(directions=[RADAR_BOTTOM_LEFT, RADAR_BOTTOM_RIGHT]):
             drone.refresh_radar(my_radar_blips[drone.drone_id])
             # If there is a fish above, go to the specific location
 
-            fishes_left = drone.get_radar_blips_unscanned_fish_count(directions[0])
-            fishes_right = drone.get_radar_blips_unscanned_fish_count(directions[1])
+            target_y = min(drone.pos.y + y_direction * 3000, 7500)
+
+            fishes_left = drone.get_radar_blips_unscanned_fish_count(RADAR_BOTTOM_LEFT)
+            fishes_right = drone.get_radar_blips_unscanned_fish_count(RADAR_BOTTOM_RIGHT)
 
             left_new_target = max(X_LEFT_MARGIN, drone.pos.x - 1000)
             right_new_target = min(X_RIGHT_MARGIN, drone.pos.x + 1000)
 
             # If both sides have fishes, go to the side of the drone
             if fishes_left and fishes_right:
-                if drone.context["side"] == SinkerSide.LEFT or drone.get_radar_blips_monsters(directions[1]):
+                if drone.context["side"] == SinkerSide.LEFT or drone.get_radar_blips_monsters(RADAR_BOTTOM_RIGHT):
                     drone.target = Vector(left_new_target, target_y)
                 else:
                     drone.target = Vector(right_new_target, target_y)
@@ -1040,9 +1041,36 @@ def run_feuille_morte_v2(directions=[RADAR_BOTTOM_LEFT, RADAR_BOTTOM_RIGHT]):
               # Nothing detected, go to the middle
             #   drone.target = Vector(2500 if drone.context["side"] == SinkerSide.LEFT else 7500, 10000)
         elif(drone.state == StrategyState.CROSSING):
-            drone.target = Vector(3500 if drone.context["side"] == SinkerSide.LEFT else 6500, 7000)
+            drone.target = Vector(3500 if drone.context["side"] == SinkerSide.LEFT else 6500, 7500)
         elif(drone.state == StrategyState.RISING):
-            drone.target = Vector(3500 if drone.context["side"] == SinkerSide.LEFT else 6500, 0)
+            # drone.target = Vector(3500 if drone.context["side"] == SinkerSide.LEFT else 6500, 0)
+            # Scan for fishes above/below
+            drone.refresh_radar(my_radar_blips[drone.drone_id])
+            # If there is a fish above, go to the specific location
+
+            fishes_left = drone.get_radar_blips_unscanned_fish_count(RADAR_TOP_LEFT)
+            fishes_right = drone.get_radar_blips_unscanned_fish_count(RADAR_TOP_RIGHT)
+
+            target_y = max(drone.pos.y + -3000, Y_SURFACE)
+
+            left_new_target = max(X_LEFT_MARGIN, drone.pos.x - 1000)
+            right_new_target = min(X_RIGHT_MARGIN, drone.pos.x + 1000)
+
+            # If both sides have fishes, go to the side of the drone
+            if fishes_left and fishes_right:
+                if drone.context["side"] == SinkerSide.LEFT or drone.get_radar_blips_monsters(RADAR_TOP_RIGHT):
+                    drone.target = Vector(left_new_target, target_y)
+                else:
+                    drone.target = Vector(right_new_target, target_y)
+            # If only left
+            elif fishes_left:
+                drone.target = Vector(left_new_target, target_y)
+            # If only right
+            elif fishes_right:
+                drone.target = Vector(right_new_target, target_y)
+            # If nothing detected, go to the middle
+            else:
+              drone.target = Vector(2500 if drone.context["side"] == SinkerSide.LEFT else 7500, target_y)
     return inner
 
 
@@ -1094,6 +1122,7 @@ strategies = {
     DroneRole.SINKER_MID2: run_sinker(6250),
     DroneRole.CHASER: run_chase,
     DroneRole.FEUILLE_MORTE: run_feuille_morte_v2(),
+    DroneRole.FEUILLE_MORTE_TOP: run_feuille_morte_v2([RADAR_TOP_LEFT, RADAR_TOP_RIGHT], -1),
     DroneRole.RUSH_TOP: run_rush,
 }
 
