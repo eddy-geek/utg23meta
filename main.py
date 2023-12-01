@@ -313,7 +313,8 @@ class Drone:
         return f"MOVE {clamp(round(self.target.x))} {clamp(round(self.target.y))} {str_light}"
 
     def detect_close_monsters(self, max_dist=MONSTER_MAX_DETECTION_RADIUS, turns_since_seen=5):
-        global loop                return [fs for fs in fish_global_map.values() \
+        global loop
+        return [fs for fs in fish_global_map.values() \
                 if fs.is_monster \
                     and fs.predicted_pos \
                     and dist(self.pos, fs.predicted_pos) < max_dist \
@@ -456,13 +457,14 @@ class Drone:
         if not self.are_monsters_blocking_arise():
             outpaceable_foes = self.get_outpaceable_foes(foes)
             close_monsters = self.detect_close_monsters()
+            
             if self.is_score_enough_to_rush() and len(outpaceable_foes) >= 1:
                 self.role = DroneRole.RUSH_TOP
                 print_debug("%s: RUSH_TOP: predicted score being %d and foes %s are outpaceable",
                     self.name(),
                     Score.estimated_drone_save(self), #type:ignore (optional)
                     outpaceable_foes)
-            if self.is_score_enough_to_rush() and self.detect_close_monsters():
+            if self.is_score_enough_to_rush() and sel):
                 self.role = DroneRole.RUSH_TOP
                 print_debug("%s: RUSH_TOP: predicted score being %d and monsters %s are close",
                             self.name(), 
@@ -1062,7 +1064,7 @@ class Score:
         for id in drone_ids:
             for x in range(3):
                 fish_types[x] += Score.drone_score_details[id]["fish_types"][x]
-                score += len(fish_types[x]) * 
+                score += len(fish_types[x]) * (x + 1)
             for x in range(4):
                 fish_colors[x] += Score.drone_score_details[id]["fish_colors"][x]
 
@@ -1212,7 +1214,7 @@ while True:
 
         drone.is_light_enabled = drone.should_enable_light()
 
-        drone.force_strategy_change()
+        drone.force_strategy_change(foes=foe_drones)
 
         # Detect any monsters
         # In case a monster is detected, evade it !
