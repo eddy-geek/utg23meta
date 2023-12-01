@@ -992,7 +992,7 @@ def run_feuille_morte_v2(directions=[RADAR_BOTTOM_LEFT, RADAR_BOTTOM_RIGHT], y_d
             drone.state = StrategyState.RISING
 
         # Drone is at the bottom of the map, need to go to the middle
-        if drone.pos.y >= (7250 if loop < 50 else 8500)  and drone.state == StrategyState.SINKING:
+        if drone.pos.y >= (7250 if loop < 40 else 8500)  and drone.state == StrategyState.SINKING:
             drone.state = StrategyState.CROSSING
         # Drone is at the middle of the map, need to go to the top
         elif 3250 <= drone.pos.x <= 6750 and drone.state == StrategyState.CROSSING:
@@ -1008,7 +1008,7 @@ def run_feuille_morte_v2(directions=[RADAR_BOTTOM_LEFT, RADAR_BOTTOM_RIGHT], y_d
             drone.refresh_radar(my_radar_blips[drone.drone_id])
             # If there is a fish above, go to the specific location
 
-            target_y = min(drone.pos.y + y_direction * 3000, 7500 if loop < 50 else 8500)
+            target_y = min(drone.pos.y + y_direction * 3000, 7500 if loop < 40 else 8500)
 
             fishes_left = drone.get_radar_blips_unscanned_fish_count(RADAR_BOTTOM_LEFT)
             fishes_right = drone.get_radar_blips_unscanned_fish_count(RADAR_BOTTOM_RIGHT)
@@ -1041,7 +1041,7 @@ def run_feuille_morte_v2(directions=[RADAR_BOTTOM_LEFT, RADAR_BOTTOM_RIGHT], y_d
               # Nothing detected, go to the middle
             #   drone.target = Vector(2500 if drone.context["side"] == SinkerSide.LEFT else 7500, 10000)
         elif(drone.state == StrategyState.CROSSING):
-            drone.target = Vector(2500 if drone.context["side"] == SinkerSide.LEFT else 6500, 7500 if loop < 50 else 8500)
+            drone.target = Vector(3500 if drone.context["side"] == SinkerSide.LEFT else 6500, 7500 if loop < 40 else 8500)
         elif(drone.state == StrategyState.RISING):
             # drone.target = Vector(3500 if drone.context["side"] == SinkerSide.LEFT else 6500, 0)
             # Scan for fishes above/below
