@@ -946,6 +946,8 @@ def run_feuille_morte_v2(directions=[RADAR_TOP_LEFT, RADAR_BOTTOM_RIGHT]):
       drone.context["state"] = SinkerState.SINKING
 
     def inner(drone: Drone):
+        target_y = 10000 if directions[0] == RADAR_BOTTOM_LEFT else Y_SURFACE
+
         if loop == 0:
             init(drone)
 
@@ -970,21 +972,24 @@ def run_feuille_morte_v2(directions=[RADAR_TOP_LEFT, RADAR_BOTTOM_RIGHT]):
             fishes_left = drone.get_radar_blips_unscanned_fish_count(directions[0])
             fishes_right = drone.get_radar_blips_unscanned_fish_count(directions[1])
 
+            left_new_target = max(X_LEFT_MARGIN, drone.pos.x - 1000)
+            right_new_target = min(X_RIGHT_MARGIN, drone.pos.x + 1000)
+
             # If both sides have fishes, go to the side of the drone
             if fishes_left and fishes_right:
-                if drone.context["side"] == SinkerSide.LEFT or drone.get_radar_blips_monsters():
-                    drone.target = Vector(1500 if drone.context["side"] == SinkerSide.LEFT else 6500, 10000)
+                if drone.context["side"] == SinkerSide.LEFT or drone.get_radar_blips_monsters(directions[1]):
+                    drone.target = Vector(left_new_target, target_y)
                 else:
-                    drone.target = Vector(3500 if drone.context["side"] == SinkerSide.LEFT else 8500, 10000)
+                    drone.target = Vector(right_new_target, target_y)
             # If only left
             elif fishes_left:
-                drone.target = Vector(1500 if drone.context["side"] == SinkerSide.LEFT else 6500, 10000)
+                drone.target = Vector(left_new_target, target_y)
             # If only right
             elif fishes_right:
-                drone.target = Vector(3500 if drone.context["side"] == SinkerSide.LEFT else 8500, 10000)
+                drone.target = Vector(right_new_target, target_y)
             # If nothing detected, go to the middle
             else:
-              drone.target = Vector(2500 if drone.context["side"] == SinkerSide.LEFT else 7500, 10000)
+              drone.target = Vector(2500 if drone.context["side"] == SinkerSide.LEFT else 7500, target_y)
             # if drone.get_radar_blips_unscanned_fish_count(directions[0]):  #? Can be improved by giving a drone a preference on a side to go first
             #   print_debug("%s found fish above/below left", drone.drone_id)
             #   drone.target = Vector(1500 if drone.context["side"] == SinkerSide.LEFT else 6500, 10000)
@@ -1122,11 +1127,6 @@ class Score:
     @staticmethod
     def estimated_score_with_bonus(drones: list[Drone], other_drones: list[Drone]):
         score = 0
-
-        for drone in drones:
-            score += Score.estimated_drone_save(drone)
-        for drone in other_drones:
-            Score.estimated_drone_save(drone)
         fish_types = {
             0: [],
             1: [],
@@ -1139,6 +1139,12 @@ class Score:
             3: [],
         }
 
+        for drone in drones:
+            score += Score.estimated_drone_save(drone)
+        # update the score of the other drones
+        for drone in other_drones:
+            Score.estimated_drone_save(drone)
+
         drone_ids = [drone.drone_id for drone in drones]
         for id in drone_ids:
             for x in range(3):
@@ -1147,6 +1153,9 @@ class Score:
             for x in range(4):
                 fish_colors[x] += Score.drone_score_details[id]["fish_colors"][x]
 
+        #================================================
+        #                Score without bonus
+        #================================================
         other_drone_ids = [drone.drone_id for drone in other_drones]
         for id in other_drone_ids:
             for x in range(3):
@@ -1168,6 +1177,31 @@ class Score:
         for f_color in fish_colors.values():
             if len(f_color) == 3:
                 score += 3
+
+        #================================================
+        #                Score only with bonus
+        #================================================
+        for id in other_drone_ids:
+            for x in range(3):
+                other_fish_types = Score.drone_score_details[id]["fish_types"][x]
+                for fish in other_fish_types:
+                    if fish in fish_types[x]:
+                        fish_types[x].remove(fish)
+                fish_types[x] += Score.drone_score_details[id]["fish_types"][x]
+            for x in range(4):
+                fish_colors[x] += Score.drone_score_details[id]["fish_colors"][x]
+                for fish in Score.drone_score_details[id]["fish_colors"][x]:
+                    if fish in fish_colors[x]:
+                        fish_colors[x].remove(fish)
+
+        for f_type in fish_types.values():
+            if len(f_type) == 3:
+                score += 4
+        for f_color in fish_colors.values():
+            if len(f_color) == 3:
+                score += 3
+
+        return score
 
 # TODO TODO light 
 # monster overrides this: force turn off
